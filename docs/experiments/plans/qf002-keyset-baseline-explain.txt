@@ -1,0 +1,24 @@
+                                                                                                                                                    QUERY PLAN                                                                                                                                                     
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=28211.68..28217.51 rows=50 width=76) (actual time=85.013..87.061 rows=50 loops=1)
+   Buffers: shared hit=3032 read=11592
+   ->  Gather Merge  (cost=28211.68..36762.77 rows=73290 width=76) (actual time=85.011..87.055 rows=50 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=3032 read=11592
+         ->  Sort  (cost=27211.65..27303.27 rows=36645 width=76) (actual time=82.058..82.061 rows=39 loops=3)
+               Sort Key: created_at DESC, id DESC
+               Sort Method: top-N heapsort  Memory: 38kB
+               Buffers: shared hit=3032 read=11592
+               Worker 0:  Sort Method: top-N heapsort  Memory: 38kB
+               Worker 1:  Sort Method: top-N heapsort  Memory: 38kB
+               ->  Parallel Seq Scan on products  (cost=0.00..25994.33 rows=36645 width=76) (actual time=0.039..75.232 rows=29638 loops=3)
+                     Filter: ((price >= '100'::numeric) AND (price <= '500'::numeric) AND (category_id = 1) AND ((status)::text = 'ACTIVE'::text) AND ((created_at < '2024-09-02 00:53:21+00'::timestamp with time zone) OR ((created_at = '2024-09-02 00:53:21+00'::timestamp with time zone) AND (id < 50000))))
+                     Rows Removed by Filter: 303696
+                     Buffers: shared hit=2944 read=11592
+ Planning:
+   Buffers: shared hit=128
+ Planning Time: 0.379 ms
+ Execution Time: 87.146 ms
+(20 rows)
+

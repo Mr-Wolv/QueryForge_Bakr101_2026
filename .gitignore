@@ -1,16 +1,28 @@
-# Compiled class file
+# ===== Build output =====
+target/
 *.class
 
-# Log file
+# ===== IDE / editor =====
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.settings/
+.project
+.classpath
+.factorypath
+
+# ===== Workspace metadata (Freebuff/Codebuff local state) =====
+.freebuff/
+.github/modernize/
+
+# ===== Logs & JVM crash dumps =====
 *.log
+hs_err_pid*
+replay_pid*
 
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
+# ===== Archives / binaries (nothing is vendored; build via Maven) =====
 *.jar
 *.war
 *.nar
@@ -19,6 +31,25 @@
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
-replay_pid*
+# ===== Local toolchain (JDK 25, k6 — fetched on demand, see tools/README.md) =====
+tools/
+
+# ===== Generated datasets (reproducible via scripts/generate-data.sh, seed=42) =====
+benchmark/seed/*.csv
+
+# ===== Python (generator / graph scripts) =====
+__pycache__/
+*.py[cod]
+
+# ===== OS junk =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Secrets / local env =====
+.env
+.env.*
+
+# ===== Legacy Java IDE droppings =====
+*.ctxt
+.mtj.tmp/

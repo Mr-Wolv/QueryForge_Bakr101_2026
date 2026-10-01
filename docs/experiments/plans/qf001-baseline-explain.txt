@@ -1,0 +1,24 @@
+                                                                    QUERY PLAN                                                                     
+---------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=25086.81..25092.64 rows=50 width=76) (actual time=83.324..85.124 rows=50 loops=1)
+   Buffers: shared hit=2826 read=11784
+   ->  Gather Merge  (cost=25086.81..33638.84 rows=73298 width=76) (actual time=83.321..85.118 rows=50 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=2826 read=11784
+         ->  Sort  (cost=24086.79..24178.41 rows=36649 width=76) (actual time=79.097..79.099 rows=40 loops=3)
+               Sort Key: created_at DESC
+               Sort Method: top-N heapsort  Memory: 38kB
+               Buffers: shared hit=2826 read=11784
+               Worker 0:  Sort Method: top-N heapsort  Memory: 38kB
+               Worker 1:  Sort Method: top-N heapsort  Memory: 38kB
+               ->  Parallel Seq Scan on products  (cost=0.00..22869.33 rows=36649 width=76) (actual time=0.049..71.954 rows=29638 loops=3)
+                     Filter: ((price >= '100'::numeric) AND (price <= '500'::numeric) AND (category_id = 1) AND ((status)::text = 'ACTIVE'::text))
+                     Rows Removed by Filter: 303696
+                     Buffers: shared hit=2752 read=11784
+ Planning:
+   Buffers: shared hit=129
+ Planning Time: 0.624 ms
+ Execution Time: 85.200 ms
+(20 rows)
+

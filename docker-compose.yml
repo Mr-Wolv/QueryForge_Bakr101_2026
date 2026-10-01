@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: queryforge
+      POSTGRES_USER: queryforge
+      POSTGRES_PASSWORD: queryforge
+    command: >
+      postgres -c shared_preload_libraries=pg_stat_statements
+               -c pg_stat_statements.track=all
+    ports:
+      - "5433:5432"   # host 5433 to avoid colliding with a local PostgreSQL on 5432
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U queryforge -d queryforge"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Optional: full-stack container. `docker compose --profile app up --build`
+  app:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/queryforge
+      DB_USER: queryforge
+      DB_PASSWORD: queryforge
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
