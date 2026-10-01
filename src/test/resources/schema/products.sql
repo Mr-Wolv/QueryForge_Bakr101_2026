@@ -16,3 +16,13 @@ CREATE TABLE IF NOT EXISTS categories (
     id   BIGINT PRIMARY KEY,
     name VARCHAR(128) NOT NULL
 );
+
+-- Reference data matching the generator's 5 category buckets
+-- (kept in sync with db/migrations/V1__create_products.sql).
+INSERT INTO categories (id, name) VALUES
+    (1, 'electronics'),
+    (2, 'clothing'),
+    (3, 'home'),
+    (4, 'sports'),
+    (5, 'books')
+ON CONFLICT (id) DO NOTHING;
