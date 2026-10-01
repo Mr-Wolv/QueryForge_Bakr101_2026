@@ -24,6 +24,11 @@ import java.util.Locale;
  * Cursor predicate for DESC order on column C with id tiebreaker:
  *   (C < :cv) OR (C = :cv AND id < :cid)
  * and the mirror-image with > for ASC.
+ *
+ * API contract: the keyset endpoint accepts only sort=createdAt (enforced in ProductService),
+ * because the cursor format encodes (created_at, id). This repository stays column-agnostic;
+ * the whitelist below is shared with SearchParams, which validates the same sort parameter
+ * for the offset endpoint (where price/id remain legal).
  */
 @Repository
 public class ProductKeysetRepository {

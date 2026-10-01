@@ -44,7 +44,7 @@ public class ProductController {
         return service.search(p);
     }
 
-    /** Workload D — keyset (cursor) pagination over the same filters. */
+    /** Workload D — keyset (cursor) pagination over the same filters (sort=createdAt only). */
     @GetMapping("/keyset")
     public KeysetPage<ProductRow> searchKeyset(
             @RequestParam(required = false) Long category,

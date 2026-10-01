@@ -41,8 +41,19 @@ public class ProductService {
         return new PageResponse<>(content, p.page(), p.size(), page.getTotalElements(), hasNext);
     }
 
-    /** Workload D — keyset (cursor) pagination over the same filters. */
+    /**
+     * Workload D — keyset (cursor) pagination over the same filters.
+     *
+     * Deliberately restricted to sort=createdAt: the cursor format encodes (created_at, id), so
+     * a cursor issued for another sort column would be mis-decoded. Other sorts stay available
+     * on the offset endpoint; a sort-aware typed cursor was considered and deferred.
+     */
     public KeysetPage<ProductRow> searchKeyset(SearchParams p, String cursor, Integer limit) {
+        if (!"createdAt".equals(p.sortField())) {
+            throw new IllegalArgumentException(
+                    "keyset pagination supports only sort=createdAt (the cursor encodes (created_at, id)); "
+                            + "use the offset endpoint for sort=price|id");
+        }
         int lim = limit == null ? p.size() : limit;
         if (lim < 1 || lim > SearchParams.MAX_SIZE) {
             throw new IllegalArgumentException("limit must be between 1 and " + SearchParams.MAX_SIZE);

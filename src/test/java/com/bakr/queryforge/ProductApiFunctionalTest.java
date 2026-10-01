@@ -190,6 +190,25 @@ class ProductApiFunctionalTest {
     }
 
     @Test
+    void keysetRejectsNonCreatedAtSorts() {
+        // Cursor encodes (created_at, id): other sort columns have no correctly-typed cursor,
+        // so the API contract restricts keyset to sort=createdAt (400, with an explanatory error).
+        for (String sort : new String[]{"price", "id"}) {
+            var resp = rest.getForEntity(url("/api/products/keyset?sort=" + sort), String.class);
+            assertThat(resp.getStatusCode().value()).as("sort=%s must be rejected", sort).isEqualTo(400);
+            assertThat(resp.getBody()).as("sort=%s error must explain the restriction", sort)
+                    .contains("sort=createdAt");
+        }
+    }
+
+    @Test
+    void keysetAcceptsExplicitCreatedAtSort() {
+        // The default is createdAt; making it explicit must stay legal.
+        var resp = rest.getForEntity(url("/api/products/keyset?sort=createdAt&dir=desc&size=5"), String.class);
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+    }
+
+    @Test
     void categoriesListed() {
         var resp = rest.getForEntity(url("/api/categories"), JsonNode.class);
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
