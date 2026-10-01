@@ -13,6 +13,9 @@ so both strategies are measured at the exact same logical position in the result
   [ProductKeysetRepository](../../src/main/java/com/bakr/queryforge/repo/ProductKeysetRepository.java),
   opaque base64url cursor of `(created_at, id)`, predicate
   `created_at < :cv OR (created_at = :cv AND id < :cid)`, no COUNT, no OFFSET.
+  Keyset is deliberately **`sort=createdAt`-only**: the cursor encodes `(created_at, id)`, so a cursor
+  for another sort column would decode to the wrong type (other sorts remain on the offset endpoint;
+  requests with `sort=price|id` are rejected with 400).
 
 ## Results (p50 / p95 per depth)
 
@@ -38,13 +41,25 @@ OFFSET walk are the measurable wins (≈ 1.7–3.2× per page). The plans:
 
 ## Why keyset wins
 
-1. No `OFFSET`: the index directly seeks to the cursor position — cost is O(log n + page), not
-   O(depth + page).
-2. No COUNT: keyset pages don't know their total size, so the query is one index-bounded scan.
+1. No `OFFSET`: the server stops after `size` rows past the cursor predicate instead of producing
+   and discarding `depth` rows first — per-page work is bounded by the filter and the page size,
+   not by how deep the page sits.
+2. No COUNT: keyset pages don't know their total size, so the query never pays the per-page
+   `count(*)` the Spring Data envelope issues (11.4 ms indexed at this size).
 3. Deterministic order: `(created_at, id)` tiebreaking makes pages stable under concurrent inserts.
+
+**What this does *not* prove:** with the filter-first index
+`(category_id, status, price, created_at DESC)`, `created_at` sits *after* the `price` range column,
+so the index cannot serve `ORDER BY created_at DESC` as a lossless walk — the captured keyset plan
+([qf002-keyset-baseline-explain.txt](plans/qf002-keyset-baseline-explain.txt)) still scans the
+qualifying rows and top-N sorts them. The measured 40 ms vs 129 ms is therefore attributable to the
+removed OFFSET traversal and COUNT — **not** to a direct cursor seek. Whether an order-first index
+`(category_id, status, created_at DESC, price)` would turn keyset into a true index walk (and what
+it would cost the filter path) is tested in [QF-004](QF-004-index-ordering.md).
 
 ## Tradeoff
 
 - Keyset only supports **next/previous relative to a cursor** — you cannot jump to page N.
-- The cursor is opaque but tied to `(sortColumn, dir)`; changing sort mid-walk invalidates it.
+- The cursor is opaque and encodes `(created_at, id)`; keyset is restricted to `sort=createdAt`
+  (other sorts get a 400), and changing `dir` mid-walk invalidates the cursor.
 - Total count (if UI needs it) must be fetched separately/cached.

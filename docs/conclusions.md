@@ -1,7 +1,7 @@
 # QueryForge — Conclusions
 
 Answers to the questions this project set out to investigate. All numbers from the 1M-row
-(seed=42) experiments detailed in [benchmarks.md](benchmarks.md) and the three experiment reports.
+(seed=42) experiments detailed in [benchmarks.md](benchmarks.md) and the four experiment reports.
 
 ## 1. Which query became the bottleneck, and why?
 
@@ -36,6 +36,10 @@ workload: equality columns, then range, then sort. No planner hints, no rewritin
 | Envelope COUNT (DB time) | 79 ms | 11.4 ms | ~7× |
 | Page 50K deep (keyset vs OFFSET p50) | 129 ms | 40 ms | ~3.2× |
 
+Every latency claim is stated only for its measured mechanism — see the pagination note in
+[QF-002](experiments/QF-002-pagination.md#why-keyset-wins): with the filter-first index, keyset
+removes the OFFSET walk and the per-page COUNT; it is **not** a proven direct cursor seek.
+
 ## 4. What happened under concurrency?
 
 With the index in place the system hits a clean **throughput plateau at ~36–43 req/s** from 10 to
@@ -48,17 +52,23 @@ deployment parallelism, *not* another index.
 
 - **Composite index**: +~60 MB storage; every write maintains 4 indexed columns; helps only this
   workload family (e.g. `sort=price` still scans). Kept out of V1 on purpose so the baseline stays
-  reproducible.
-- **Keyset pagination**: flat, cheap, deterministic — but no page jumping, cursor tied to
-  `(sort, dir)`, and total count needs a separate path.
+  reproducible. The order-first alternative (`created_at` before `price`) was built, measured and
+  **kept as a candidate** — see [QF-004](experiments/QF-004-index-ordering.md).
+- **Keyset pagination**: flat, cheap, deterministic — but restricted to `sort=createdAt` (the
+  cursor encodes `(created_at, id)`; other sorts are a 400), no page jumping, cursor tied to
+  `dir`, and total count needs a separate path.
 
 ## 6. What would we do next (evidence permitting)?
 
 1. Raise Hikari pool (or scale app replicas) and re-run the QF-003 ladder — the plateau should move
    to the next resource (likely DB CPU).
-2. `sort=price` support via a second, narrower index *if* telemetry shows demand.
-3. Covering index (`INCLUDE`) if the Bitmap Heap recheck shows up again at higher cache pressure.
-4. pg_stat_statements is enabled and captures per-query means — a regression-watch script over it
+2. Order-first index `(category_id, status, created_at DESC, price)` — built and measured in
+   [QF-004](experiments/QF-004-index-ordering.md): it won every read query on this dataset
+   (keyset becomes a true index walk, 24.7 vs 36.2 ms p50 at 50K) but optimizes a non-bottleneck
+   and carries an unmeasured narrow-prefix risk, so it stays a documented candidate, not a swap.
+3. `sort=price` support via a second, narrower index *if* telemetry shows demand.
+4. Covering index (`INCLUDE`) if the Bitmap Heap recheck shows up again at higher cache pressure.
+5. pg_stat_statements is enabled and captures per-query means — a regression-watch script over it
    would be the natural CI extension.
 
 ## The one-sentence version
@@ -76,4 +86,4 @@ already measured and named.
 > Java 25 | Spring Boot | PostgreSQL 17 | Docker | k6
 > • Built a reproducible performance-testing environment for a PostgreSQL-backed REST service using deterministic seed-controlled datasets up to 1M records and k6 workloads from single-user to 200 concurrent users.
 > • Diagnosed query bottlenecks with `EXPLAIN (ANALYZE, BUFFERS)` and `pg_stat_statements` — a parallel seq scan discarding 911K rows per request plus a full-table COUNT — then validated a workload-shaped composite index through repeatable before/after benchmarks.
-> • Reduced p95 for filtered search from **8,180 ms to 130 ms (~63×)** at 10 req/s (sustaining 30 req/s at p95 252 ms), demonstrated flat O(page) keyset vs OFFSET pagination (**40 ms vs 129 ms** p50 at 50K-row depth), and identified the 10-connection pool as the next bottleneck via a measured 10→200-VU throughput plateau.
+> • Reduced p95 for filtered search from **8,180 ms to 130 ms (~63×)** at 10 req/s (sustaining 30 req/s at p95 252 ms), demonstrated flat keyset vs OFFSET pagination (**40 ms vs 129 ms** p50 at 50K-row depth), and identified the 10-connection pool as the next bottleneck via a measured 10→200-VU throughput plateau.

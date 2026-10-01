@@ -2,7 +2,7 @@
 
 **Workload:** QF-001 filtered search, page 0, size 50 — **indexed state**, 1M rows.
 **Load:** constant-VUs (true concurrent users), 10 → 25 → 50 → 100 → 200, 45 s per level.
-**Config under test:** Spring Boot 3.5 (Tomcat, default 200 threads), Hikari pool **10 connections**
+**Config under test:** Spring Boot 3.5.5 (Tomcat, default 200 threads), Hikari pool **10 connections**
 (deliberately left at defaults for Stage 0–3).
 
 ## Results

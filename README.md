@@ -4,7 +4,7 @@
 
 **PostgreSQL Performance Engineering Service** — build it, measure it, find the bottleneck, fix it, prove it.
 
-A small Spring Boot 3.5 / Java 25 REST service over a 1,000,000-row PostgreSQL product catalog,
+A small Spring Boot 3.5.5 / Java 25 REST service over a 1,000,000-row PostgreSQL product catalog,
 used to run controlled, reproducible database performance experiments: filtered search, OFFSET vs
 keyset pagination, and concurrency behavior — each documented with `EXPLAIN (ANALYZE, BUFFERS)`
 before/after evidence.
@@ -17,6 +17,7 @@ before/after evidence.
 | After one workload-shaped index | p95 **130 ms** (~63×), p50 **92 ms** (~40×), COUNT 79 ms → 11.4 ms (Index Only Scan) |
 | OFFSET pagination, 50K rows deep | p50 **129 ms** |
 | Keyset pagination, same depth | p50 **40 ms** — flat across depth |
+| Index ordering (QF-004) | Order-first candidate measured **faster on every read** (keyset 24.7 vs 36.2 ms p50 at 50K) — kept as a documented candidate, not applied |
 | Concurrency ladder 10→200 VUs | Throughput plateaus at **~38 req/s** (10-connection pool — measured, not guessed) |
 | Same code at 10K / 100K / 1M rows | p50 **9.9 ms → 37.2 ms → 3,687 ms** — small-scale numbers are not evidence |
 | Point lookup floor (Workload A) | p50 **4.8 ms** at 1M rows via PK index |
@@ -74,14 +75,14 @@ A lightweight perf-regression check (NFR5) is included:
 | --- | --- |
 | `GET /api/products/{id}` | point lookup (404 if missing) |
 | `GET /api/products` | filtered search: `category, status, minPrice, maxPrice, sort(createdAt\|price\|id), dir, page, size≤200` |
-| `GET /api/products/keyset` | cursor pagination: same filters + `cursor` + `size` |
+| `GET /api/products/keyset` | cursor pagination: same filters + `cursor` + `size` (`sort=createdAt` only — the cursor encodes `(created_at, id)`) |
 | `GET /api/categories` | category list |
 
 ## Documentation map
 
 - [docs/architecture.md](docs/architecture.md) — components and request paths
 - [docs/benchmarks.md](docs/benchmarks.md) — experiment index, benchmark matrix, reproduction commands
-- [docs/experiments/](docs/experiments/) — QF-000 (scaling), QF-001 (index), QF-002 (pagination), QF-003 (concurrency), raw plans
+- [docs/experiments/](docs/experiments/) — QF-000 (scaling), QF-001 (index), QF-002 (pagination), QF-003 (concurrency), QF-004 (index ordering), raw plans
 - [docs/conclusions.md](docs/conclusions.md) — engineering conclusions, tradeoffs, and the next justified levers
 
 ## Design principle

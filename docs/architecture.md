@@ -2,7 +2,7 @@
 
 ## What this is
 
-A deliberately small Spring Boot 3.5 / Java 25 REST service over PostgreSQL 17 whose purpose is to
+A deliberately small Spring Boot 3.5.5 / Java 25 REST service over PostgreSQL 17 whose purpose is to
 **measure** database behavior: filtered search, sorted pagination, and concurrency — then to
 optimize it via controlled, reproducible experiments.
 
@@ -45,7 +45,9 @@ src/main/java/com/bakr/queryforge/
   predicates; Spring Data adds `ORDER BY`, `LIMIT/OFFSET` and a `count(*)` for the envelope.
 - **Keyset** — hand-written parameterized SQL; the only interpolated token is the sort column,
   validated against a whitelist (`createdAt`, `price`, `id`); cursor predicate
-  `(col < :cv OR (col = :cv AND id < :cid))` for DESC.
+  `(col < :cv OR (col = :cv AND id < :cid))` for DESC. The endpoint itself accepts only
+  `sort=createdAt` (the cursor encodes `(created_at, id)`); `price`/`id` remain legal on the
+  offset endpoint.
 
 ## Data & environment
 
