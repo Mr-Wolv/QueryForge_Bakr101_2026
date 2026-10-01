@@ -67,3 +67,13 @@ At 1M rows, a workload-shaped composite index and cursor pagination turned a ser
 under 10 req/s (p95 8.18 s) into one that serves 30 req/s at p95 252 ms with flat deep-page latency
 — at the cost of ~60 MB and some write overhead, with the next bottleneck (the 10-connection pool)
 already measured and named.
+
+---
+
+## CV bullet (earned by the measurements above)
+
+> **QueryForge — PostgreSQL Performance Engineering Service**
+> Java 25 | Spring Boot | PostgreSQL 17 | Docker | k6
+> • Built a reproducible performance-testing environment for a PostgreSQL-backed REST service using deterministic seed-controlled datasets up to 1M records and k6 workloads from single-user to 200 concurrent users.
+> • Diagnosed query bottlenecks with `EXPLAIN (ANALYZE, BUFFERS)` and `pg_stat_statements` — a parallel seq scan discarding 911K rows per request plus a full-table COUNT — then validated a workload-shaped composite index through repeatable before/after benchmarks.
+> • Reduced p95 for filtered search from **8,180 ms to 130 ms (~63×)** at 10 req/s (sustaining 30 req/s at p95 252 ms), demonstrated flat O(page) keyset vs OFFSET pagination (**40 ms vs 129 ms** p50 at 50K-row depth), and identified the 10-connection pool as the next bottleneck via a measured 10→200-VU throughput plateau.
