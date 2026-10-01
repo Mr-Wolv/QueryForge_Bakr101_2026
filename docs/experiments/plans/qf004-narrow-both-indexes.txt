@@ -1,0 +1,21 @@
+                                                                      QUERY PLAN                                                                       
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=751.81..751.93 rows=50 width=76) (actual time=1.032..1.038 rows=50 loops=1)
+   Buffers: shared hit=213 read=18
+   ->  Sort  (cost=751.81..752.31 rows=201 width=76) (actual time=1.031..1.033 rows=50 loops=1)
+         Sort Key: created_at DESC
+         Sort Method: top-N heapsort  Memory: 38kB
+         Buffers: shared hit=213 read=18
+         ->  Bitmap Heap Scan on products  (cost=11.49..745.13 rows=201 width=76) (actual time=0.107..0.967 rows=225 loops=1)
+               Recheck Cond: ((category_id = 1) AND ((status)::text = 'ACTIVE'::text) AND (price >= '499'::numeric) AND (price <= '500'::numeric))
+               Heap Blocks: exact=221
+               Buffers: shared hit=210 read=18
+               ->  Bitmap Index Scan on idx_products_search  (cost=0.00..11.44 rows=201 width=0) (actual time=0.077..0.077 rows=225 loops=1)
+                     Index Cond: ((category_id = 1) AND ((status)::text = 'ACTIVE'::text) AND (price >= '499'::numeric) AND (price <= '500'::numeric))
+                     Buffers: shared hit=3 read=4
+ Planning:
+   Buffers: shared hit=191 read=1
+ Planning Time: 0.568 ms
+ Execution Time: 1.084 ms
+(17 rows)
+

@@ -1,0 +1,20 @@
+                                                                                     QUERY PLAN                                                                                     
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=2.10..87.42 rows=50 width=76) (actual time=30.225..30.242 rows=50 loops=1)
+   Buffers: shared hit=7120 read=1477
+   ->  Incremental Sort  (cost=2.10..64572.34 rows=37838 width=76) (actual time=30.223..30.238 rows=50 loops=1)
+         Sort Key: created_at DESC, id DESC
+         Presorted Key: created_at
+         Full-sort Groups: 2  Sort Method: quicksort  Average Memory: 29kB  Peak Memory: 29kB
+         Buffers: shared hit=7120 read=1477
+         ->  Index Scan using idx_products_search_orderfirst on products  (cost=0.42..62869.63 rows=37838 width=76) (actual time=30.156..30.188 rows=51 loops=1)
+               Index Cond: ((category_id = 1) AND ((status)::text = 'ACTIVE'::text) AND (price >= '100'::numeric) AND (price <= '500'::numeric))
+               Filter: ((created_at < '2024-01-06 00:05:29+00'::timestamp with time zone) OR ((created_at = '2024-01-06 00:05:29+00'::timestamp with time zone) AND (id < 437129)))
+               Rows Removed by Filter: 50471
+               Buffers: shared hit=7114 read=1477
+ Planning:
+   Buffers: shared hit=199 read=3
+ Planning Time: 0.572 ms
+ Execution Time: 30.278 ms
+(16 rows)
+

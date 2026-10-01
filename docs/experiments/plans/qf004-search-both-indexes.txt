@@ -1,0 +1,13 @@
+                                                                       QUERY PLAN                                                                        
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..35.90 rows=50 width=76) (actual time=0.053..0.092 rows=50 loops=1)
+   Buffers: shared hit=16
+   ->  Index Scan using idx_products_search_orderfirst on products  (cost=0.42..62211.94 rows=87691 width=76) (actual time=0.052..0.088 rows=50 loops=1)
+         Index Cond: ((category_id = 1) AND ((status)::text = 'ACTIVE'::text) AND (price >= '100'::numeric) AND (price <= '500'::numeric))
+         Buffers: shared hit=16
+ Planning:
+   Buffers: shared hit=193
+ Planning Time: 0.417 ms
+ Execution Time: 0.113 ms
+(9 rows)
+

@@ -1,0 +1,29 @@
+                                                                                        QUERY PLAN                                                                                        
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=21364.27..21370.10 rows=50 width=76) (actual time=112.195..118.404 rows=50 loops=1)
+   Buffers: shared hit=15196
+   ->  Gather Merge  (cost=21364.27..25101.36 rows=32030 width=76) (actual time=112.193..118.397 rows=50 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=15196
+         ->  Sort  (cost=20364.25..20404.28 rows=16015 width=76) (actual time=106.759..106.764 rows=43 loops=3)
+               Sort Key: created_at DESC, id DESC
+               Sort Method: top-N heapsort  Memory: 38kB
+               Buffers: shared hit=15196
+               Worker 0:  Sort Method: top-N heapsort  Memory: 38kB
+               Worker 1:  Sort Method: top-N heapsort  Memory: 38kB
+               ->  Parallel Bitmap Heap Scan on products  (cost=4274.97..19832.24 rows=16015 width=76) (actual time=29.314..101.360 rows=12814 loops=3)
+                     Recheck Cond: ((category_id = 1) AND ((status)::text = 'ACTIVE'::text) AND (price >= '100'::numeric) AND (price <= '500'::numeric))
+                     Filter: ((created_at < '2024-01-06 00:05:29+00'::timestamp with time zone) OR ((created_at = '2024-01-06 00:05:29+00'::timestamp with time zone) AND (id < 437129)))
+                     Rows Removed by Filter: 16824
+                     Heap Blocks: exact=4880
+                     Buffers: shared hit=15166
+                     ->  Bitmap Index Scan on idx_products_search  (cost=0.00..4265.36 rows=89129 width=0) (actual time=30.745..30.745 rows=88913 loops=1)
+                           Index Cond: ((category_id = 1) AND ((status)::text = 'ACTIVE'::text) AND (price >= '100'::numeric) AND (price <= '500'::numeric))
+                           Buffers: shared hit=717
+ Planning:
+   Buffers: shared hit=180
+ Planning Time: 2.166 ms
+ Execution Time: 118.613 ms
+(25 rows)
+

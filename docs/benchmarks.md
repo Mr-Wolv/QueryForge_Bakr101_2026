@@ -16,6 +16,7 @@ Raw k6 metric JSON lives in [benchmark/results/](../benchmark/results/), executi
 | QF-001 | Why is filtered search slow at 1M rows, and what does a workload-shaped index buy? | done | [QF-001-baseline.md](experiments/QF-001-baseline.md) |
 | QF-002 | How do OFFSET and KEYSET pagination behave as page depth grows? | done | [QF-002-pagination.md](experiments/QF-002-pagination.md) |
 | QF-003 | What limits the backend under increasing concurrency? | done | [QF-003-concurrency.md](experiments/QF-003-concurrency.md) |
+| QF-004 | Index column ordering: does an order-first index beat filter-first for the keyset path, and what does it cost the filter path? | done | [QF-004-index-ordering.md](experiments/QF-004-index-ordering.md) |
 
 ## Benchmark matrix
 
@@ -30,6 +31,8 @@ Raw k6 metric JSON lives in [benchmark/results/](../benchmark/results/), executi
 | 1M | Pagination depth 0–50K | OFFSET | 20 req/s | p50 117→129 ms per depth |
 | 1M | Pagination depth 0–50K | KEYSET | 20 req/s | p50 68→40 ms per depth, flat |
 | 1M | Filtered search | Indexed | 10→200 VUs | flat ~36–43 RPS plateau (see QF-003) |
+| 1M | Keyset A/B (index ordering) | order-first candidate present | 20 req/s | keyset p50 5.0→24.7 ms by depth (see QF-004) |
+| 1M | Filtered search A/B (index ordering) | order-first candidate present | 10 req/s offered | p50 44 ms / p95 87 ms (see QF-004) |
 
 Baseline at higher offered rates collapsed entirely (26 s p50 at 100 req/s, pool timeouts) —
 recorded in QF-001 rather than the matrix because the comparison at matched 10 req/s is the
@@ -52,6 +55,11 @@ tools/k6/k6.exe run -e MODE=offset -e RATE=20 -e DUR=60s -e OUT=qf002-offset-1M 
 tools/k6/k6.exe run -e MODE=keyset -e RATE=20 -e DUR=60s -e OUT=qf002-keyset-1M benchmark/k6/pagination.js
 tools/k6/k6.exe run -e VUS=100 -e DUR=45s -e OUT=qf003-vus100 benchmark/k6/concurrency.js
 tools/k6/k6.exe run -e RATE=10 -e DUR=30s -e OUT=qf000a-point-lookup-1M benchmark/k6/point.js
+
+# QF-004 (optional): with the candidate index applied (see QF-004 report for the DDL),
+# capture the A-state; then drop the candidate and re-run for the B-state.
+./scripts/benchmark.sh pagination MODE=keyset RATE=20 DUR=60s OUT=qf004-keyset-both-indexes
+./scripts/benchmark.sh search RATE=10 DUR=60s OUT=qf004-search-both-indexes-r10
 ```
 
 ## Regression awareness (NFR5)

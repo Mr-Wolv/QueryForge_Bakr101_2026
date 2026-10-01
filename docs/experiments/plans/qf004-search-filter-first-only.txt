@@ -1,0 +1,27 @@
+                                                                         QUERY PLAN                                                                          
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=21784.68..21790.51 rows=50 width=76) (actual time=39.457..44.278 rows=50 loops=1)
+   Buffers: shared hit=15182
+   ->  Gather Merge  (cost=21784.68..30431.45 rows=74110 width=76) (actual time=39.455..44.270 rows=50 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=15182
+         ->  Sort  (cost=20784.65..20877.29 rows=37055 width=76) (actual time=36.904..36.908 rows=40 loops=3)
+               Sort Key: created_at DESC
+               Sort Method: top-N heapsort  Memory: 38kB
+               Buffers: shared hit=15182
+               Worker 0:  Sort Method: top-N heapsort  Memory: 38kB
+               Worker 1:  Sort Method: top-N heapsort  Memory: 38kB
+               ->  Parallel Bitmap Heap Scan on products  (cost=4276.62..19553.71 rows=37055 width=76) (actual time=10.935..31.469 rows=29638 loops=3)
+                     Recheck Cond: ((category_id = 1) AND ((status)::text = 'ACTIVE'::text) AND (price >= '100'::numeric) AND (price <= '500'::numeric))
+                     Heap Blocks: exact=4896
+                     Buffers: shared hit=15166
+                     ->  Bitmap Index Scan on idx_products_search  (cost=0.00..4254.39 rows=88931 width=0) (actual time=11.065..11.066 rows=88913 loops=1)
+                           Index Cond: ((category_id = 1) AND ((status)::text = 'ACTIVE'::text) AND (price >= '100'::numeric) AND (price <= '500'::numeric))
+                           Buffers: shared hit=717
+ Planning:
+   Buffers: shared hit=142 read=29
+ Planning Time: 0.704 ms
+ Execution Time: 44.356 ms
+(23 rows)
+

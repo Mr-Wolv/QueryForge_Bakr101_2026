@@ -80,6 +80,8 @@ The service went from "collapses at 30 req/s" to "sustains 30 req/s at p95 252 m
 Latency at higher offered rates still grows once the 10-connection pool saturates — quantified in
 [QF-003](QF-003-concurrency.md); that is now the next bottleneck, not the access path.
 
+![before/after](../../benchmark/results/index-before-after.png)
+
 ## Tradeoff
 
 - Storage: +~60 MB for the index (table 114 MB → total ≈ 174 MB with index).
