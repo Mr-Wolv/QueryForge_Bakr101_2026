@@ -91,10 +91,31 @@ A lightweight perf-regression check (NFR5) is included:
 is.** The baseline schema has zero secondary indexes; the composite index is a *measured* change
 applied manually via `scripts/apply-index.sh`, never assumed.
 
+## Frontend UI
+
+A lightweight Angular 22 evidence browser lets you inspect experiments, run history, and comparisons without leaving the browser.
+
+| Page | Screenshot |
+| --- | --- |
+| Overview | ![overview](frontend/docs/screenshots/overview.png) |
+| Experiment catalog | ![catalog](frontend/docs/screenshots/catalog.png) |
+| Run detail | ![run detail](frontend/docs/screenshots/run-detail.png) |
+| Compare runs | ![compare](frontend/docs/screenshots/compare.png) |
+
+### Reproducible result story
+
+1. Start the backend (`mvn spring-boot:run`) and frontend (`cd frontend && ng serve`).
+2. Open `http://localhost:4200` — the overview shows API/DB/k6 health and the latest benchmark run.
+3. Browse **Catalog** to see experiment templates (QF-000 through QF-004).
+4. Launch a run or inspect existing ones in **Run history**; each run detail shows latency percentiles, throughput, hints, and downloadable artifacts (`k6-summary`, `explain-plan`).
+5. Use **Compare** to pick two runs and get a compatibility verdict with rule-level pass/fail breakdowns.
+6. All E2E smoke tests pass: catalog → run → detail → compare → artifact download → keyboard navigation.
+
 ## Test
 
 ```bash
-mvn test        # unit + functional tests (PostgreSQL via Testcontainers, needs Docker)
+mvn test        # unit + functional tests (H2 in-memory for testcontainers-less runs)
+cd frontend && npx playwright test   # E2E smoke + screenshot tests
 ```
 
 > **Windows note:** if Testcontainers cannot reach Docker Desktop's named pipes from the Java

@@ -1,0 +1,28 @@
+{
+  "id" : "cmp-qf-001-seed-17593230819200-qf-001-seed-17593230860400-1793288303891",
+  "leftRunId" : "qf-001-seed-17593230819200",
+  "rightRunId" : "qf-001-seed-17593230860400",
+  "verdict" : {
+    "leftRunId" : "qf-001-seed-17593230819200",
+    "rightRunId" : "qf-001-seed-17593230860400",
+    "compatible" : true,
+    "blockers" : [ ],
+    "warnings" : [ ],
+    "diff" : { }
+  },
+  "format" : "markdown",
+  "content" : "# Comparison Report\n\n| Field | Left | Right |\n|-------|------|-------|\n| Run ID | `qf-001-seed-17593230819200` | `qf-001-seed-17593230860400` |\n| Template | QF-001 | QF-001 |\n| State | SUCCEEDED | SUCCEEDED |\n| Duration | 5000ms | 5000ms |\n\n## Verdict\n\n**COMPATIBLE** — runs can be compared.\n\n",
+  "artifacts" : [ {
+    "kind" : "comparison-markdown",
+    "contentType" : "text/markdown",
+    "location" : "benchmark\\comparisons\\cmp-qf-001-seed-17593230819200-qf-001-seed-17593230860400-1793288303891.md",
+    "description" : "Markdown comparison report"
+  }, {
+    "kind" : "comparison-html",
+    "contentType" : "text/html",
+    "location" : "benchmark\\comparisons\\cmp-qf-001-seed-17593230819200-qf-001-seed-17593230860400-1793288303891.html",
+    "description" : "HTML comparison report"
+  } ],
+  "createdAt" : 1793288303.893684200,
+  "createdBy" : "tester"
+}

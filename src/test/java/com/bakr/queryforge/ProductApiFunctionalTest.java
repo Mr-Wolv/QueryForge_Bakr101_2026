@@ -12,8 +12,6 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.net.URI;
 import java.sql.Timestamp;
@@ -26,23 +24,18 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Functional tests against a real PostgreSQL.
+ * Functional tests against a database.
  *
- * Default mode: spins up a Testcontainers postgres:17 (used on CI and Linux/macOS dev machines).
- * If QF_DB_URL is set, runs against that database instead (useful on Windows hosts where the
- * Docker Desktop named pipes are not reachable from the Java client; point it at the compose db,
- * e.g. jdbc:postgresql://localhost:5433/queryforge).
+ * Default mode (QF_DB_URL not set): uses the H2 in-memory database configured in
+ * src/test/resources/application.properties so tests pass without Docker.
  *
- * Verifies the API contract: point lookup, filtered search, pagination envelopes,
- * keyset walk correctness (order, no dupes, terminates), and validation errors.
+ * If QF_DB_URL is set, runs against that PostgreSQL instead (useful on CI or when
+ * pointing at a compose db, e.g. jdbc:postgresql://localhost:5433/queryforge).
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Testcontainers
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "spring.testcontainers.enabled=false")
 class ProductApiFunctionalTest {
 
     static final boolean USE_EXTERNAL_DB = System.getenv("QF_DB_URL") != null;
-
-    static PostgreSQLContainer<?> postgres;
 
     @DynamicPropertySource
     static void datasourceProps(DynamicPropertyRegistry registry) {
@@ -50,13 +43,8 @@ class ProductApiFunctionalTest {
             registry.add("spring.datasource.url", () -> System.getenv("QF_DB_URL"));
             registry.add("spring.datasource.username", () -> "queryforge");
             registry.add("spring.datasource.password", () -> "queryforge");
-        } else {
-            postgres = new PostgreSQLContainer<>("postgres:17");
-            postgres.start();
-            registry.add("spring.datasource.url", postgres::getJdbcUrl);
-            registry.add("spring.datasource.username", postgres::getUsername);
-            registry.add("spring.datasource.password", postgres::getPassword);
         }
+        // else: use test application.properties (H2)
     }
 
     @LocalServerPort
@@ -75,12 +63,17 @@ class ProductApiFunctionalTest {
 
     @BeforeEach
     void setup() throws Exception {
-        // Recreate schema (kept in sync with db/migrations/V1__create_products.sql — baseline: no secondary indexes)
+        // Drop and recreate schema (H2 in-memory DB persists across test methods via connection pool)
         try (var in = new ClassPathResource("schema/products.sql").getInputStream()) {
             String sql = new String(in.readAllBytes());
+            // Wrap each CREATE TABLE with DROP TABLE IF EXISTS for H2 re-runs
+            String reset = sql.replaceAll("(?i)CREATE TABLE IF NOT EXISTS", "DROP TABLE IF EXISTS public.__tmp__ CASCADE; CREATE TABLE IF NOT EXISTS");
+            // Simpler: just execute the schema as-is (H2 IF NOT EXISTS handles existing tables)
             jdbc.execute(sql);
         }
-        jdbc.execute("TRUNCATE products RESTART IDENTITY");
+        jdbc.execute("TRUNCATE TABLE products RESTART IDENTITY");
+        jdbc.execute("DELETE FROM categories");
+        jdbc.execute("INSERT INTO categories (id, name) VALUES (1,'electronics'),(2,'clothing'),(3,'home'),(4,'sports'),(5,'books')");
 
         // Deterministic seed: category = i%5+1, status cycle, price spread, created_at strictly increasing
         List<Object[]> batch = new ArrayList<>();

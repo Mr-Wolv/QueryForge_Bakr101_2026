@@ -1,0 +1,17 @@
+{
+  "runId" : "qf-001-x-1793294000423",
+  "templateId" : "QF-001",
+  "state" : "CANCELLED",
+  "startedAt" : "2026-10-29T17:13:20.423433300Z",
+  "durationMs" : 0,
+  "outcome" : "cancelled by user",
+  "migrationVersion" : "V1",
+  "indexState" : "baseline",
+  "resourceLimits" : {
+    "memoryMb" : 4022,
+    "cpuCores" : 8
+  },
+  "appCommit" : "unknown",
+  "artifacts" : [ ],
+  "checksumSha256" : "abf1334b4d9f5448ac543800fe2b7daca9cb21050af3d89ca74f94f51a1519af"
+}

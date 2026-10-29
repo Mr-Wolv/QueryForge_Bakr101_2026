@@ -1,0 +1,42 @@
+.state-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-4, 1rem);
+      padding: var(--space-8, 64px) var(--space-6, 32px);
+      text-align: center;
+      border: 1px solid var(--border, #e5e5e5);
+      border-radius: var(--radius-lg, 8px);
+      background: var(--surface, #fff);
+      color: var(--text-muted, #999);
+    }
+    .icon {
+      opacity: 0.5;
+      color: var(--text-muted, #999);
+    }
+    .message {
+      margin: 0;
+      font-size: 0.9375rem;
+      color: var(--text-secondary, #555);
+      font-weight: 400;
+    }
+    .spin {
+      animation: spin 1s linear infinite;
+      transform-origin: center;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .unavailable {
+      background: var(--bg, #fafafa);
+      border-color: #F9DED8;
+    }
+    .unavailable .icon {
+      color: var(--error, #C44536);
+      opacity: 0.8;
+    }
+    .unavailable .message {
+      color: var(--error, #C44536);
+    }

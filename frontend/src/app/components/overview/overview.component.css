@@ -1,0 +1,85 @@
+.overview h1 {
+  font-size: 2.5rem;
+  font-weight: 200;
+  letter-spacing: -0.064px;
+  margin-bottom: 0.25rem;
+}
+.subtitle {
+  font-size: 1rem;
+  color: var(--text-muted, #999);
+  font-weight: 400;
+  margin-bottom: var(--space-7, 48px);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-5, 24px);
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  transition: box-shadow 250ms ease, border-color 250ms ease;
+}
+.card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: #ddd;
+}
+.card h2 {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted, #999);
+  margin: 0 0 var(--space-4);
+}
+dl {
+  margin: 0;
+}
+dt {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #999);
+  margin-top: var(--space-3);
+}
+dt:first-child {
+  margin-top: 0;
+}
+dd {
+  margin: 0.25rem 0 0;
+  font-size: 0.9375rem;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.ok { color: var(--success, #2D5A4A); }
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+.metric-item {
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border-light);
+}
+.metric-item:first-child {
+  border-top: none;
+}
+.metric-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted, #999);
+  display: block;
+  margin-bottom: 0.25rem;
+}
+.metric-value {
+  font-size: 24px;
+  font-weight: 300;
+  letter-spacing: -0.032px;
+  font-variant-numeric: tabular-nums;
+}

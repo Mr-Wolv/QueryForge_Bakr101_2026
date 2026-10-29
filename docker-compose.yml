@@ -19,8 +19,8 @@ services:
       timeout: 3s
       retries: 20
 
-  # Optional: full-stack container. `docker compose --profile app up --build`
-  app:
+  # Backend API
+  backend:
     profiles: ["app"]
     build:
       context: .
@@ -31,9 +31,23 @@ services:
       DB_PASSWORD: queryforge
     ports:
       - "8080:8080"
+    volumes:
+      - ./benchmark/results:/app/benchmark/results:ro
+      - ./docs/experiments:/app/docs/experiments:ro
     depends_on:
       db:
         condition: service_healthy
+
+  # Frontend (Angular + nginx)
+  frontend:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
 
 volumes:
   pgdata:

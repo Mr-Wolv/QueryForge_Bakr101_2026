@@ -1,0 +1,121 @@
+h1 {
+      font-size: 32px;
+      font-weight: 200;
+      letter-spacing: -0.048px;
+      margin-bottom: var(--space-5, 24px);
+    }
+    form {
+      display: flex;
+      gap: var(--space-4, 1rem);
+      align-items: flex-end;
+      margin-bottom: var(--space-6, 32px);
+      flex-wrap: wrap;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2, 8px);
+      font-size: 13px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-secondary, #555);
+    }
+    select, button {
+      padding: var(--space-3, 12px) var(--space-4, 1rem);
+      border: 1px solid var(--border, #e5e5e5);
+      border-radius: var(--radius-md, 4px);
+      font-size: 0.9375rem;
+      font-family: var(--font-sans, inherit);
+    }
+    button {
+      background: var(--accent, #111);
+      color: var(--surface, #fff);
+      border-color: var(--accent, #111);
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 150ms ease;
+    }
+    button:hover:not(:disabled) {
+      background: var(--accent-hover, #333);
+      border-color: var(--accent-hover, #333);
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .result h2 {
+      font-weight: 400;
+      font-size: 1.25rem;
+      margin-bottom: var(--space-5, 24px);
+    }
+    .verdict {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4, 1rem);
+      margin-bottom: var(--space-6, 32px);
+      padding: var(--space-4, 1rem);
+      background: var(--surface, #fff);
+      border: 1px solid var(--border, #e5e5e5);
+      border-radius: var(--radius-lg, 8px);
+    }
+    .badge {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: var(--space-2, 8px) var(--space-3, 12px);
+      border: 1px solid var(--text, #111);
+      border-radius: var(--radius-sm, 2px);
+    }
+    .badge.pass {
+      color: var(--success, #2D5A4A);
+      border-color: var(--success, #2D5A4A);
+      background: #E8F5EE;
+    }
+    .badge.fail {
+      color: var(--error, #C44536);
+      border-color: var(--error, #C44536);
+      background: #FEF3F0;
+    }
+    .score {
+      font-size: 14px;
+      color: var(--text-secondary, #555);
+      font-weight: 500;
+    }
+    .vs {
+      color: var(--text-muted, #999);
+      margin: 0 var(--space-3, 12px);
+      font-weight: 300;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: var(--space-4, 1rem);
+    }
+    .card {
+      background: var(--surface, #fff);
+      border: 1px solid var(--border, #e5e5e5);
+      border-radius: var(--radius-lg, 8px);
+      padding: var(--space-5, 24px);
+      transition: box-shadow 250ms ease;
+    }
+    .card:hover {
+      box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,0.06));
+    }
+    .card h3 {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted, #999);
+      margin: 0 0 var(--space-3, 12px);
+    }
+    .card p {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+    .card p.pass { color: var(--success, #2D5A4A); }
+    .card p.fail { color: var(--error, #C44536); }
