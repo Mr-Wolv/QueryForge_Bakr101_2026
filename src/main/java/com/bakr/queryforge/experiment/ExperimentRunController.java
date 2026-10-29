@@ -1,17 +1,22 @@
 package com.bakr.queryforge.experiment;
 
+import com.bakr.queryforge.api.dto.ExperimentRunRequest;
 import com.bakr.queryforge.experiment.ExperimentTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.web.server.ResponseStatusException;
 
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Phase 2 run orchestration endpoints.
  */
+@Validated
 @RestController
 @RequestMapping("/api/runs")
 public class ExperimentRunController {
@@ -27,7 +32,7 @@ public class ExperimentRunController {
     }
 
     @PostMapping
-    public ResponseEntity<ExperimentRun> create(@RequestBody ExperimentRunRequest request) {
+    public ResponseEntity<ExperimentRun> create(@Valid @RequestBody ExperimentRunRequest request) {
         ExperimentRun created = runs.create(request.templateId(), request.parameters(), request.clientRequestId());
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(created);
     }
@@ -50,6 +55,18 @@ public class ExperimentRunController {
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
+    }
+
+    @GetMapping("/{id}/events")
+    public SseEmitter events(@PathVariable String id) {
+        SseEmitter emitter = new SseEmitter(0L);
+        ExperimentRun run = runs.findById(id).orElse(null);
+        if (run != null) {
+            try {
+                emitter.send(SseEmitter.event().name("state").data(Map.of("state", run.state())));
+            } catch (Exception ignored) {}
+        }
+        return emitter;
     }
 
     @PostMapping("/{id}/cancel")

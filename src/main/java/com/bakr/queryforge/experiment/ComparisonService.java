@@ -169,8 +169,15 @@ public class ComparisonService {
         if (Files.isRegularFile(manifestPath)) {
             try {
                 var node = MAPPER.readTree(manifestPath.toFile());
-                String fp = node.path("environmentFingerprint").asText("");
-                if (!fp.isBlank()) return fp;
+                var fpNode = node.path("environmentFingerprint");
+                if (!fpNode.isMissingNode() && !fpNode.isNull()) {
+                    if (fpNode.isTextual()) {
+                        String fp = fpNode.asText();
+                        if (!fp.isBlank()) return fp;
+                    } else {
+                        return fpNode.toString();
+                    }
+                }
             } catch (Exception ignored) {}
         }
         // Fallback: template + state

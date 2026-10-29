@@ -16,9 +16,9 @@ public class ProblemDetailConfig {
     public ErrorAttributes errorAttributes() {
         return new DefaultErrorAttributes() {
             @Override
-            public Map<String, Object> getErrorAttributes(org.springframework.boot.web.servlet.error.ErrorAttributes.RequestAttributes requestAttributes,
+            public Map<String, Object> getErrorAttributes(org.springframework.web.context.request.WebRequest requestAttributes,
                                                           ErrorAttributeOptions options) {
-                var status = (Integer) requestAttributes.getAttribute("javax.servlet.error.status_code");
+                var status = (Integer) requestAttributes.getAttribute("javax.servlet.error.status_code", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST);
                 var ex = getError(requestAttributes);
                 var message = (ex != null && ex.getMessage() != null) ? ex.getMessage() : "Unexpected error";
 
@@ -27,7 +27,7 @@ public class ProblemDetailConfig {
                         "title", getTitleForStatus(status),
                         "status", status != null ? status : HttpStatus.INTERNAL_SERVER_ERROR.value(),
                         "detail", message,
-                        "instance", requestAttributes.getAttribute("javax.servlet.error.request_uri"),
+                        "instance", requestAttributes.getAttribute("javax.servlet.error.request_uri", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST),
                         "errors", Map.of()
                 );
             }

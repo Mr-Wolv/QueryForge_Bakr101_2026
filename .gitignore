@@ -50,6 +50,20 @@ desktop.ini
 .env
 .env.*
 
+# ===== Generated benchmark artifacts (reproducible via scripts/benchmark.sh) =====
+benchmark/runs/
+benchmark/comparisons/
+
+# ===== Frontend generated artifacts =====
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+frontend/.angular/
+
+# ===== Maven wrapper artifacts =====
+.mvn/wrapper/maven-wrapper.jar.new
+
 # ===== Legacy Java IDE droppings =====
 *.ctxt
 .mtj.tmp/

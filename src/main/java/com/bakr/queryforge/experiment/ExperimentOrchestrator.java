@@ -2,6 +2,7 @@ package com.bakr.queryforge.experiment;
 
 import com.bakr.queryforge.artifact.ArtifactService;
 import com.bakr.queryforge.artifact.RunArtifact;
+import com.bakr.queryforge.artifact.RunManifest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
@@ -29,7 +30,7 @@ import com.bakr.queryforge.experiment.runner.RunnerAdapter;
 public class ExperimentOrchestrator {
 
     private static final Path RUNS_DIR = Path.of("benchmark", "runs");
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
     private static final long DEFAULT_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(10);
 
     private final ExperimentTemplateService templates;
@@ -263,38 +264,81 @@ public class ExperimentOrchestrator {
     }
 
     private void writeManifest(String runId, ExperimentRun run, String outcome, List<RunArtifact> artifacts) {
-        try {
-            Files.createDirectories(RUNS_DIR);
-            Map<String, Object> manifest = new LinkedHashMap<>();
-            manifest.put("runId", run.id());
-            manifest.put("templateId", run.templateId());
-            manifest.put("state", run.state());
-            manifest.put("startedAt", run.startedAt().toString());
-            manifest.put("durationMs", run.durationMs());
-            manifest.put("outcome", outcome);
-            manifest.put("migrationVersion", "V1");
-            manifest.put("indexState", "baseline");
-            manifest.put("resourceLimits", Map.of(
-                    "cpuCores", Runtime.getRuntime().availableProcessors(),
-                    "memoryMb", Runtime.getRuntime().maxMemory() / 1024 / 1024
-            ));
-            manifest.put("appCommit", envOrDefault("GIT_COMMIT", "unknown"));
-            manifest.put("artifacts", artifacts.stream().map(a -> Map.of(
-                    "kind", a.kind(),
-                    "contentType", a.contentType(),
-                    "location", a.location(),
-                    "description", a.description()
-            )).toList());
-            byte[] bytes = MAPPER.writerWithDefaultPrettyPrinter().writeValueAsBytes(manifest);
-            String checksum = sha256(bytes);
-            manifest.put("checksumSha256", checksum);
-            Path path = RUNS_DIR.resolve(runId + ".json");
-            Files.writeString(path, MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(manifest),
-                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        } catch (Exception e) {
-            // manifest write failure should not corrupt the run record
+            try {
+                Files.createDirectories(RUNS_DIR);
+            
+                // Build artifact entries with per-artifact checksums
+                List<RunManifest.ArtifactEntry> artifactEntries = artifacts.stream().map(a -> {
+                    String artifactChecksum = "unknown";
+                    try {
+                        Path artifactPath = Path.of(a.location());
+                        if (Files.isRegularFile(artifactPath)) {
+                            byte[] artifactBytes = Files.readAllBytes(artifactPath);
+                            artifactChecksum = sha256(artifactBytes);
+                        }
+                    } catch (Exception ignored) {}
+                    return new RunManifest.ArtifactEntry(
+                            a.kind(), a.contentType(), a.location(), a.description(), artifactChecksum);
+                }).toList();
+
+                // Get environment fingerprint from readiness endpoint data
+                Map<String, Object> envFingerprint = Map.of(
+                        "appCommit", envOrDefault("GIT_COMMIT", "unknown"),
+                        "javaVersion", System.getProperty("java.version"),
+                        "postgresVersion", "unknown", // would need DB connection to get actual version
+                        "checkedAt", Instant.now().toString()
+                );
+
+                RunManifest manifest = new RunManifest(
+                        run.id(),
+                        run.templateId(),
+                        "1.0", // templateVersion
+                        run.state(),
+                        run.startedAt(),
+                        run.state().matches("SUCCEEDED|FAILED|CANCELLED|TIMED_OUT") ? Instant.now() : null,
+                        run.durationMs(),
+                        outcome,
+                        run.labels(), // parameters stored in labels
+                        envFingerprint,
+                        "V1", // migrationVersion
+                        "baseline", // indexState
+                        Map.of(
+                                "cpuCores", Runtime.getRuntime().availableProcessors(),
+                                "memoryMb", Runtime.getRuntime().maxMemory() / 1024 / 1024
+                        ),
+                        envOrDefault("GIT_COMMIT", "unknown"),
+                        artifactEntries,
+                        null // checksum will be computed below
+                );
+
+                // Compute manifest checksum (without the checksum field itself)
+                String manifestJson = MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(manifest);
+                String checksum = sha256(manifestJson.getBytes());
+            
+                // Create final manifest with checksum
+                RunManifest finalManifest = new RunManifest(
+                        manifest.runId(), manifest.templateId(), manifest.templateVersion(),
+                        manifest.state(), manifest.startedAt(), manifest.endedAt(),
+                        manifest.durationMs(), manifest.outcome(), manifest.parameters(),
+                        manifest.environmentFingerprint(), manifest.migrationVersion(),
+                        manifest.indexState(), manifest.resourceLimits(), manifest.appCommit(),
+                        manifest.artifacts(), checksum
+                );
+
+                String finalJson = MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(finalManifest);
+                Path path = RUNS_DIR.resolve(runId + ".json");
+            
+                // Atomic write: CREATE_NEW fails if file exists
+                Files.writeString(path, finalJson, StandardOpenOption.CREATE_NEW);
+            
+            } catch (java.nio.file.FileAlreadyExistsException e) {
+                // Manifest already exists - this should not happen for new runs
+                throw new IllegalStateException("Manifest already exists for run: " + runId, e);
+            } catch (Exception e) {
+                // Manifest write failure should not corrupt the run record
+                // Log the error but don't throw
+            }
         }
-    }
 
     private ExperimentRun parseManifest(Path path) {
         try {

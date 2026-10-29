@@ -26,7 +26,7 @@ class ExperimentRunControllerUnitTest {
         Mockito.when(runs.create(Mockito.eq("QF-001"), Mockito.any(), Mockito.anyString()))
                 .thenReturn(created);
 
-        ResponseEntity<ExperimentRun> resp = controller.create(new ExperimentRunRequest("QF-001", Map.of("RATE", "10"), "cid"));
+        ResponseEntity<ExperimentRun> resp = controller.create(new com.bakr.queryforge.api.dto.ExperimentRunRequest("QF-001", Map.of("RATE", "10"), "cid"));
 
         assertThat(resp.getStatusCodeValue()).isEqualTo(202);
         assertThat(resp.getBody()).isEqualTo(created);

@@ -57,8 +57,16 @@ public class K6RunnerAdapter implements RunnerAdapter {
 
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.directory(workDir.toFile());
-        pb.redirectErrorStream(true);
         Process process = pb.start();
+
+        // Bounded capture of stdout/stderr to avoid unbounded memory growth (NFR-003).
+        final long CAP = 1_048_576L; // 1 MiB per stream
+        Thread stdoutDrainer = new Thread(() -> drain(process.getInputStream(), workDir.resolve("stdout.log"), CAP), "k6-stdout-drain");
+        Thread stderrDrainer = new Thread(() -> drain(process.getErrorStream(), workDir.resolve("stderr.log"), CAP), "k6-stderr-drain");
+        stdoutDrainer.setDaemon(true);
+        stderrDrainer.setDaemon(true);
+        stdoutDrainer.start();
+        stderrDrainer.start();
         return process;
     }
 
@@ -77,6 +85,23 @@ public class K6RunnerAdapter implements RunnerAdapter {
         if (Files.isRegularFile(default_)) return default_.toString();
         // Fall back to PATH-resolved k6
         return "k6";
+    }
+
+    private static void drain(java.io.InputStream in, Path out, long cap) {
+        byte[] buf = new byte[8192];
+        long written = 0;
+        try (java.io.OutputStream os = java.nio.file.Files.newOutputStream(out,
+                java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.TRUNCATE_EXISTING)) {
+            int n;
+            while ((n = in.read(buf)) != -1 && written < cap) {
+                int toWrite = (int) Math.min(n, cap - written);
+                os.write(buf, 0, toWrite);
+                written += toWrite;
+            }
+        } catch (IOException ignored) {
+        } finally {
+            try { in.close(); } catch (IOException ignored) {}
+        }
     }
 
     Path resolveScript(String templateId) {

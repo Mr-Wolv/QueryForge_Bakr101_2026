@@ -1,6 +1,6 @@
 package com.bakr.queryforge.experiment;
 
-import com.bakr.queryforge.artifact.RunArtifact;
+import com.bakr.queryforge.artifact.RunManifest;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -14,21 +14,22 @@ class RunManifestTest {
     @Test
     void recordHoldsAllFields() {
         RunManifest manifest = new RunManifest(
-                "run-1", "QF-001", ExperimentRunState.SUCCEEDED, "client-1",
-                Map.of("RATE", "10"), "fp-1",
+                "run-1", "QF-001", "1.0", "SUCCEEDED",
                 Instant.parse("2024-01-01T00:00:00Z"), Instant.parse("2024-01-01T01:00:00Z"),
                 3600000L, "completed",
-                List.of(new RunArtifact("k6-summary", "application/json", "p", "d")),
-                "sha256hash",
+                Map.of("RATE", "10"),
+                Map.of("appCommit", "abc123"),
                 "V1", "baseline",
                 Map.of("cpuCores", 4, "memoryMb", 4096),
-                "abc123"
+                "abc123",
+                List.of(),
+                "sha256hash"
         );
         assertThat(manifest.runId()).isEqualTo("run-1");
         assertThat(manifest.templateId()).isEqualTo("QF-001");
-        assertThat(manifest.state()).isEqualTo(ExperimentRunState.SUCCEEDED);
+        assertThat(manifest.templateVersion()).isEqualTo("1.0");
+        assertThat(manifest.state()).isEqualTo("SUCCEEDED");
         assertThat(manifest.parameters()).containsEntry("RATE", "10");
-        assertThat(manifest.artifacts()).hasSize(1);
         assertThat(manifest.checksumSha256()).isEqualTo("sha256hash");
         assertThat(manifest.migrationVersion()).isEqualTo("V1");
         assertThat(manifest.indexState()).isEqualTo("baseline");

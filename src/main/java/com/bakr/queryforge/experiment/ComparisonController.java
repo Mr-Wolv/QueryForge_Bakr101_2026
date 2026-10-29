@@ -1,17 +1,20 @@
 package com.bakr.queryforge.experiment;
 
+import com.bakr.queryforge.api.dto.CompareRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import jakarta.validation.Valid;
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Comparison API endpoints.
  */
+@Validated
 @RestController
 @RequestMapping("/api/comparisons")
 public class ComparisonController {
@@ -24,27 +27,14 @@ public class ComparisonController {
         this.runs = runs;
     }
 
-    public record CompareRequest(String leftRunId, String rightRunId, String createdBy) {}
-
     @PostMapping
-    public ResponseEntity<?> compare(@RequestBody(required = false) Map<String, String> body) {
-        String a, b, createdBy;
-        if (body != null && body.containsKey("leftRunId")) {
-            a = body.get("leftRunId");
-            b = body.get("rightRunId");
-            createdBy = body.get("createdBy");
-        } else if (body != null && body.containsKey("a")) {
-            a = body.get("a");
-            b = body.get("b");
-            createdBy = null;
-        } else {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "leftRunId and rightRunId are required");
-        }
-        if (a == null || b == null || a.isBlank() || b.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "both run ids are required"));
-        }
+    public ResponseEntity<ComparisonReport> compare(@Valid @RequestBody CompareRequest request) {
+        String a = request.leftRunId();
+        String b = request.rightRunId();
+        String createdBy = request.createdBy();
+
         if (a.equals(b)) {
-            return ResponseEntity.badRequest().body(Map.of("error", "run ids must differ"));
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "run ids must differ");
         }
         try {
             ComparisonReport report = comparisonService.compare(a, b, createdBy);

@@ -23,8 +23,18 @@ public class RunHistoryController {
     }
 
     @GetMapping
-    public List<ExperimentRun> list() {
-        return runs.findAll();
+    public List<ExperimentRun> list(
+            @RequestParam(required = false) String state,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        List<ExperimentRun> all = runs.findAll();
+        if (state != null && !state.isBlank()) {
+            all = all.stream().filter(r -> state.equalsIgnoreCase(r.state())).toList();
+        }
+        int from = Math.max(0, page) * Math.max(1, size);
+        int to = Math.min(all.size(), from + Math.max(1, size));
+        if (from >= all.size()) return List.of();
+        return all.subList(from, to);
     }
 
     @GetMapping("/{id}")
