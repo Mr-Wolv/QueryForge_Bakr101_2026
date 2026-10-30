@@ -3,86 +3,29 @@
    ============================================ */
 
 :root {
-  /* Typography */
-  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
-
-  /* Colors */
-  --bg: #F5F5F3;
-  --surface: #FFFFFF;
-  --surface-raised: #FAFAF8;
-  --text: #0F0F0F;
-  --text-secondary: #4A4A4A;
-  --text-muted: #666666;
-  --border: #E8E6E1;
-  --border-light: #F0EFEC;
-  --border-strong: #D5D3CC;
-  --accent: #0F0F0F;
-  --accent-hover: #2A2A2A;
-  --accent-subtle: rgba(15, 15, 15, 0.04);
-  --success: #1A6B4A;
-  --success-bg: #E6F4ED;
-  --warning: #9A5B00;
-  --warning-bg: #FFF5E6;
-  --error: #B33A2E;
-  --error-bg: #FDF0EE;
-  --info: #1A56DB;
-  --info-bg: #EEF3FF;
-
-  /* Spacing */
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.5rem;
-  --space-6: 2rem;
-  --space-7: 3rem;
-  --space-8: 4rem;
-
-  /* Radius */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 10px;
-  --radius-xl: 14px;
-
-  /* Shadows */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.02);
-  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.03), 0 1px 2px rgba(0, 0, 0, 0.02);
-  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.03);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.07), 0 4px 8px rgba(0, 0, 0, 0.03);
-
-  /* Transitions */
-  --transition-fast: 180ms ease;
-  --transition-base: 250ms ease;
-  --transition-slow: 350ms cubic-bezier(0.22, 1, 0.36, 1);
+  --bg: var(--color-background);
+  --surface: var(--color-surface);
+  --surface-raised: var(--color-surface-elevated);
+  --text: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --text-muted: var(--color-text-muted);
+  --border: var(--color-border);
+  --border-light: var(--color-border-light);
+  --border-strong: var(--color-border-strong);
+  --accent: var(--color-accent);
+  --accent-hover: var(--color-accent-hover);
+  --accent-subtle: var(--color-accent-subtle);
+  --success: var(--color-success);
+  --success-bg: var(--color-success-bg);
+  --warning: var(--color-warning);
+  --warning-bg: var(--color-warning-bg);
+  --error: var(--color-danger);
+  --error-bg: var(--color-danger-bg);
+  --info: var(--color-info);
+  --info-bg: var(--color-info-bg);
 }
 
-/* Dark theme.
-   Components draw on two token families (--text/--surface here and
-   --color-text-primary/--color-surface in tokens.css); both must flip together
-   or text ends up light-on-light. */
 [data-theme='dark'] {
-  --bg: #111113;
-  --surface: #191a1c;
-  --surface-raised: #202124;
-  --text: #ededed;
-  --text-secondary: #b0b0ac;
-  --text-muted: #8d8d88;
-  --border: #2c2d30;
-  --border-light: #232427;
-  --border-strong: #3d3e43;
-  --accent: #ededed;
-  --accent-hover: #ffffff;
-  --accent-subtle: rgba(255, 255, 255, 0.06);
-  --success: #5fce9d;
-  --success-bg: rgba(95, 206, 157, 0.12);
-  --warning: #e2b25f;
-  --warning-bg: rgba(226, 178, 95, 0.12);
-  --error: #e88b80;
-  --error-bg: rgba(232, 139, 128, 0.12);
-  --info: #8ab0f7;
-  --info-bg: rgba(138, 176, 247, 0.12);
-
   color-scheme: dark;
 }
 
@@ -385,25 +328,25 @@ tr:hover td {
 .badge-success {
   color: var(--success);
   background: var(--success-bg);
-  border-color: rgba(26, 107, 74, 0.15);
+  border-color: color-mix(in srgb, var(--success) 15%, transparent);
 }
 
 .badge-error {
   color: var(--error);
   background: var(--error-bg);
-  border-color: rgba(179, 58, 46, 0.15);
+  border-color: color-mix(in srgb, var(--error) 15%, transparent);
 }
 
 .badge-warning {
   color: var(--warning);
   background: var(--warning-bg);
-  border-color: rgba(154, 91, 0, 0.15);
+  border-color: color-mix(in srgb, var(--warning) 15%, transparent);
 }
 
 .badge-info {
   color: var(--info);
   background: var(--info-bg);
-  border-color: rgba(26, 86, 219, 0.15);
+  border-color: color-mix(in srgb, var(--info) 15%, transparent);
 }
 
 /* ============================================

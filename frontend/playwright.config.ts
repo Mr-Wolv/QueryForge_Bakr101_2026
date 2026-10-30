@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const externalBaseUrl = process.env.PLAYWRIGHT_BASE_URL;
 const port = process.env.PLAYWRIGHT_PORT ?? '4200';
 
 export default defineConfig({
@@ -10,10 +11,10 @@ export default defineConfig({
   workers: 1,
   reporter: 'html',
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${port}`,
+    baseURL: externalBaseUrl ?? `http://127.0.0.1:${port}`,
     trace: 'on-first-retry',
   },
-  webServer: {
+  webServer: externalBaseUrl ? undefined : {
     command: `npm start -- --host 127.0.0.1 --port ${port}`,
     url: `http://127.0.0.1:${port}`,
     reuseExistingServer: false,

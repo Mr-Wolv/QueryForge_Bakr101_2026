@@ -24,7 +24,7 @@ interface PlanNode {
         <span class="meta">{{ nodeCount }} nodes</span>
       </div>
 
-      <div *ngIf="!showRaw" class="tree">
+      <div *ngIf="!showRaw" class="tree" role="tree" aria-label="Query execution plan">
         <app-plan-node
           *ngFor="let node of root.children"
           [node]="node"
@@ -37,13 +37,13 @@ interface PlanNode {
     </section>
   `,
   styles: [`
-    .plan-explorer { border: 1px solid var(--border, #e5e5e5); border-radius: var(--radius, 6px); overflow: hidden; }
-    .toolbar { display: flex; gap: var(--space-2, 8px); padding: var(--space-3, 12px); border-bottom: 1px solid var(--border, #e5e5e5); background: var(--surface-raised, #fafafa); align-items: center; }
-    .btn { font: inherit; font-size: 13px; padding: 6px 12px; border: 1px solid var(--border, #d0d0d0); background: var(--surface, #fff); border-radius: 4px; cursor: pointer; }
-    .btn:hover { background: var(--surface-hover, #f0f0f0); }
-    .meta { margin-left: auto; font-size: 12px; color: var(--text-muted, #888); }
-    .tree { padding: var(--space-4, 16px); overflow-x: auto; }
-    .raw { margin: 0; padding: var(--space-4, 16px); background: var(--surface, #fff); font-size: 13px; line-height: 1.6; overflow-x: auto; max-height: 600px; overflow-y: auto; white-space: pre; }
+    .plan-explorer { border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
+    .toolbar { display: flex; gap: var(--space-2); padding: var(--space-3); border-bottom: 1px solid var(--color-border); background: var(--color-surface-elevated); align-items: center; }
+    .btn { font: inherit; font-size: 13px; padding: 6px 12px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-primary); border-radius: var(--radius-sm); cursor: pointer; }
+    .btn:hover { background: var(--color-accent-subtle); }
+    .meta { margin-left: auto; font-size: 12px; color: var(--color-text-muted); }
+    .tree { padding: var(--space-4); overflow-x: auto; }
+    .raw { margin: 0; padding: var(--space-4); background: var(--color-surface); color: var(--color-text-primary); font-size: 13px; line-height: 1.6; overflow-x: auto; max-height: 600px; overflow-y: auto; white-space: pre; }
   `]
 })
 export class PlanExplorerComponent implements OnChanges {
