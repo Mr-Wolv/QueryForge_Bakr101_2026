@@ -1,18 +1,20 @@
 package com.bakr.queryforge.experiment;
 
-import com.bakr.queryforge.artifact.ArtifactService;
-import com.bakr.queryforge.artifact.PlanParser;
 import com.bakr.queryforge.artifact.RunArtifact;
 import com.bakr.queryforge.measurement.Metrics;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -26,6 +28,31 @@ public class ExperimentTemplateService {
 
     private static final Path RESULTS_DIR = Path.of("benchmark", "results");
     private static final Path DOCS_DIR = Path.of("docs", "experiments");
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Logger log = LoggerFactory.getLogger(ExperimentTemplateService.class);
+    private static final Duration RESULTS_CACHE_TTL = Duration.ofSeconds(2);
+
+    private final Path resultsDir;
+    private final Path docsDir;
+    private final long cacheTtlNanos;
+    private Map<Path, CachedRun> cachedFiles = Map.of();
+    private List<ExperimentRun> cachedRuns = List.of();
+    private long refreshedAtNanos;
+    private boolean hasCachedSnapshot;
+
+    public ExperimentTemplateService() {
+        this(RESULTS_DIR, DOCS_DIR, RESULTS_CACHE_TTL);
+    }
+
+    ExperimentTemplateService(Path resultsDir, Path docsDir) {
+        this(resultsDir, docsDir, RESULTS_CACHE_TTL);
+    }
+
+    ExperimentTemplateService(Path resultsDir, Path docsDir, Duration cacheTtl) {
+        this.resultsDir = resultsDir;
+        this.docsDir = docsDir;
+        this.cacheTtlNanos = cacheTtl.toNanos();
+    }
 
     private static final List<ExperimentTemplate> TEMPLATES = List.of(
             new ExperimentTemplate(
@@ -130,35 +157,65 @@ public class ExperimentTemplateService {
                 .toList();
     }
 
-    public List<ExperimentRun> loadRuns() {
-        if (!Files.isDirectory(RESULTS_DIR)) {
+    public synchronized List<ExperimentRun> loadRuns() {
+        long now = System.nanoTime();
+        if (hasCachedSnapshot && now - refreshedAtNanos < cacheTtlNanos) {
+            return cachedRuns;
+        }
+        if (!Files.isDirectory(resultsDir)) {
+            cachedFiles = Map.of();
+            cachedRuns = List.of();
+            refreshedAtNanos = System.nanoTime();
+            hasCachedSnapshot = true;
             return List.of();
         }
-        try (Stream<Path> stream = Files.list(RESULTS_DIR)) {
-            return stream.filter(p -> p.toString().endsWith(".json"))
-                    .map(this::parseRun)
+        try (Stream<Path> stream = Files.list(resultsDir)) {
+            Map<Path, CachedRun> refreshed = new LinkedHashMap<>();
+            stream.filter(path -> path.getFileName().toString().endsWith(".json"))
+                    .forEach(path -> {
+                        try {
+                            BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
+                            CachedRun previous = cachedFiles.get(path);
+                            if (previous != null
+                                    && previous.size() == attributes.size()
+                                    && previous.lastModifiedTime().equals(attributes.lastModifiedTime())) {
+                                refreshed.put(path, previous);
+                                return;
+                            }
+                            ExperimentRun run = parseRun(path);
+                            refreshed.put(path, new CachedRun(
+                                    attributes.size(), attributes.lastModifiedTime(), run));
+                        } catch (IOException e) {
+                            log.error("Could not read benchmark result metadata for {}", path, e);
+                        }
+                    });
+            cachedFiles = Map.copyOf(refreshed);
+            cachedRuns = refreshed.values().stream()
+                    .map(CachedRun::run)
                     .filter(Objects::nonNull)
-                    .sorted(Comparator.comparingLong(r -> r.startedAt().toEpochMilli()))
+                    .sorted(Comparator.comparingLong(run -> run.startedAt().toEpochMilli()))
                     .toList();
+            refreshedAtNanos = System.nanoTime();
+            hasCachedSnapshot = true;
+            return cachedRuns;
         } catch (IOException e) {
-            return List.of();
+            throw new IllegalStateException("Could not read benchmark results from " + resultsDir, e);
         }
     }
 
     private ExperimentRun parseRun(Path path) {
         try {
-            var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            var node = mapper.readTree(path.toFile());
+            JsonNode node = MAPPER.readTree(path.toFile());
             String id = path.getFileName().toString().replaceAll("\\.json$", "");
             String templateId = inferTemplateId(id);
-            Instant startedAt = inferStartedAt(id, node);
+            Instant startedAt = inferStartedAt(path);
             Metrics metrics = Metrics.fromK6Node(node);
             List<RunArtifact> artifacts = List.of(
                     new RunArtifact("k6-summary", "application/json", path.toString(), "k6 summary JSON")
             );
             // Attach plans if present
             String planKey = toPlanKey(id);
-            Path planPath = DOCS_DIR.resolve("plans").resolve(planKey + "-explain.txt");
+            Path planPath = docsDir.resolve("plans").resolve(planKey + "-explain.txt");
             if (Files.exists(planPath)) {
                 artifacts = new ArrayList<>(artifacts);
                 artifacts.add(new RunArtifact("explain-plan", "text/plain", planPath.toString(), "EXPLAIN (ANALYZE, BUFFERS)"));
@@ -176,8 +233,13 @@ public class ExperimentTemplateService {
                     "unknown"
             );
         } catch (Exception e) {
+            log.error("Could not parse benchmark result {}", path, e);
             return null;
         }
+    }
+
+    private static Instant inferStartedAt(Path path) throws IOException {
+        return Instant.ofEpochMilli(Files.getLastModifiedTime(path).toMillis());
     }
 
     static String inferTemplateId(String filename) {
@@ -192,7 +254,7 @@ public class ExperimentTemplateService {
     static Instant inferStartedAt(String filename, com.fasterxml.jackson.databind.JsonNode node) {
         Path path = Path.of("benchmark", "results", filename + ".json");
         try {
-            return Instant.ofEpochMilli(Files.getLastModifiedTime(path).toMillis());
+            return inferStartedAt(path);
         } catch (Exception e) {
             return Instant.now();
         }
@@ -212,4 +274,6 @@ public class ExperimentTemplateService {
             default -> runId;
         };
     }
+
+    private record CachedRun(long size, java.nio.file.attribute.FileTime lastModifiedTime, ExperimentRun run) {}
 }
