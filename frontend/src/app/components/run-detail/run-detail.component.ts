@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink, Router } from '@angular/router';
 import { ApiService, ExperimentRun, Hint, RunArtifact, RunEvent } from '../../services/api.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { LatencyChartComponent } from '../latency-chart/latency-chart.component';
 import { StateCardComponent } from '../state-card/state-card.component';
 
@@ -26,7 +27,7 @@ import { StateCardComponent } from '../state-card/state-card.component';
         <span>Started: {{run.startedAt | date:'short'}}</span>
       </div>
 
-      <button *ngIf="run.state === 'QUEUED'" class="launch" (click)="start()" [disabled]="starting">
+      <button *ngIf="run.state === 'QUEUED' && auth.canOperate()" class="launch" (click)="start()" [disabled]="starting">
         {{starting ? 'Starting…' : 'Start run'}}
       </button>
 
@@ -54,7 +55,7 @@ import { StateCardComponent } from '../state-card/state-card.component';
         <div class="hint" *ngFor="let h of hints" [class.severity]="h.severity">
           <strong>{{h.title}}</strong>
           <p>{{h.body}}</p>
-          <button class="test-lab" (click)="testInLab(h.title)" *ngIf="h.severity === 'suggestion' || h.severity === 'warning'">
+          <button class="test-lab" (click)="testInLab(h.title)" *ngIf="auth.canOperate() && (h.severity === 'suggestion' || h.severity === 'warning')">
             Test in lab
           </button>
         </div>
@@ -103,6 +104,7 @@ import { StateCardComponent } from '../state-card/state-card.component';
 export class RunDetailComponent implements OnDestroy {
   private route = inject(ActivatedRoute);
   private api = inject(ApiService);
+  readonly auth = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
   private router = inject(Router);
   run?: ExperimentRun;

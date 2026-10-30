@@ -1,0 +1,19 @@
+global:
+  smtp_smarthost: "${QF_SMTP_HOST}"
+  smtp_from: "${QF_SMTP_FROM}"
+  smtp_auth_username: "${QF_SMTP_USERNAME}"
+  smtp_auth_password_file: /run/secrets/smtp_password
+  smtp_require_tls: true
+
+route:
+  receiver: queryforge-operations
+  group_by: ["alertname"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: queryforge-operations
+    email_configs:
+      - to: "${QF_ALERT_EMAIL}"
+        send_resolved: true

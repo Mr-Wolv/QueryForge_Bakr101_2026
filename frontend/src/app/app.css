@@ -102,6 +102,39 @@ nav a.active::after {
   transform: scaleX(1);
 }
 
+.identity {
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.auth-error {
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+}
+
+.sign-in,
+.sign-out {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.sign-in:hover,
+.sign-out:hover {
+  background: var(--color-accent-subtle);
+}
+
+.sign-in:focus-visible,
+.sign-out:focus-visible {
+  outline: 2px solid var(--color-text-primary);
+  outline-offset: 2px;
+}
+
 .main {
   padding: var(--space-7) var(--space-7);
   max-width: 1200px;

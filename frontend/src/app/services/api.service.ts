@@ -107,6 +107,13 @@ export interface RunEvent {
   message?: string;
 }
 
+export interface AuthSession {
+  authEnabled: boolean;
+  authenticated: boolean;
+  operator: boolean;
+  displayName: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private http = inject(HttpClient);
@@ -153,6 +160,14 @@ export class ApiService {
 
   getReadiness(): Observable<Readiness> {
     return this.http.get<Readiness>(`${this.base}/lab/readiness`);
+  }
+
+  getAuthSession(): Observable<AuthSession> {
+    return this.http.get<AuthSession>(`${this.base}/auth/session`);
+  }
+
+  logout(): Observable<void> {
+    return this.http.post<void>(`${this.base}/auth/logout`, {});
   }
 
   getRuns(): Observable<ExperimentRun[]> {

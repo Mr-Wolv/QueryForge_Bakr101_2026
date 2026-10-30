@@ -1,0 +1,26 @@
+FROM maven:3.9-eclipse-temurin-25 AS build
+WORKDIR /app
+COPY pom.xml .
+RUN mvn -B -ntp dependency:go-offline
+COPY src ./src
+RUN mvn -B -ntp package -DskipTests
+
+FROM grafana/k6:2.3.0 AS k6
+
+FROM eclipse-temurin:25-jre
+WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 10001 queryforge \
+    && useradd --system --uid 10001 --gid queryforge --home-dir /app queryforge \
+    && mkdir -p /app/benchmark/results /app/benchmark/runs /app/docs/experiments \
+    && chown -R queryforge:queryforge /app
+COPY --from=build --chown=queryforge:queryforge /app/target/queryforge-1.0.0.jar app.jar
+COPY --from=k6 --chown=queryforge:queryforge /usr/bin/k6 /usr/local/bin/k6
+COPY --chown=queryforge:queryforge benchmark/k6 ./benchmark/k6
+COPY --chown=queryforge:queryforge benchmark/results ./benchmark/results
+COPY --chown=queryforge:queryforge docs/experiments ./docs/experiments
+USER 10001:10001
+EXPOSE 8080 8081
+ENTRYPOINT ["java", "-jar", "app.jar"]

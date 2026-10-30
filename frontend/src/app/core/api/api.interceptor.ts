@@ -12,6 +12,9 @@ export function apiInterceptor(req: HttpRequest<unknown>, next: HttpHandlerFn): 
 
   return next(authReq).pipe(
     catchError((error: HttpErrorResponse) => {
+      if (error.status === 401 && req.url.startsWith('/api/')) {
+        window.location.assign('/oauth2/authorization/queryforge');
+      }
       const problem = error.error as ProblemDetail | undefined;
       return throwError(() => problem ?? {
         type: 'https://problem.org/internal',

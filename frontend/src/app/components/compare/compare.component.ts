@@ -2,6 +2,7 @@ import { Component, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService, ExperimentRun, ComparisonResult, MetricDeltaValue } from '../../services/api.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { StateCardComponent } from '../state-card/state-card.component';
 
 interface DeltaRow {
@@ -51,7 +52,8 @@ const LABELS: Record<string, { label: string; group: string; higherIsBetter: boo
             <option *ngFor="let r of runs" [value]="r.id">{{r.id}}</option>
           </select>
         </label>
-        <button type="submit" [disabled]="loading">{{loading ? 'Comparing…' : 'Compare'}}</button>
+        <button *ngIf="auth.canOperate()" type="submit" [disabled]="loading">{{loading ? 'Comparing…' : 'Compare'}}</button>
+        <p *ngIf="!auth.canOperate()" class="read-only-note">An experiment operator must create comparisons.</p>
       </form>
 
       <app-state-card *ngIf="error" mode="unavailable" [message]="error" />
@@ -130,6 +132,7 @@ const LABELS: Record<string, { label: string; group: string; higherIsBetter: boo
 })
 export class CompareComponent {
   private api = inject(ApiService);
+  readonly auth = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
   runs: ExperimentRun[] = [];
   result?: ComparisonResult;

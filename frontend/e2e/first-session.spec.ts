@@ -35,6 +35,15 @@ test.describe('first session', () => {
       const request = route.request();
       const url = new URL(request.url());
 
+      if (request.method() === 'GET' && url.pathname === '/api/auth/session') {
+        await route.fulfill({ json: {
+          authEnabled: false,
+          authenticated: false,
+          operator: true,
+          displayName: '',
+        } });
+        return;
+      }
       if (request.method() === 'GET' && url.pathname === '/api/runs') {
         await route.fulfill({ json: { content: [], page: 0, size: 100, totalElements: 0, totalPages: 0, hasNext: false } });
         return;

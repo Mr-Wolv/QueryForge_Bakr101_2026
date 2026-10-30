@@ -1,0 +1,47 @@
+groups:
+  - name: queryforge
+    rules:
+      - alert: QueryForgeBackendUnavailable
+        expr: up{job="queryforge"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: QueryForge backend is unavailable
+          description: The backend metrics endpoint has failed its scrape for two minutes.
+
+      - alert: QueryForgeHighServerErrorRate
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{job="queryforge",status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(http_server_requests_seconds_count{job="queryforge"}[5m])), 0.001)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: QueryForge server error rate is above 5%
+          description: More than 5% of backend HTTP requests failed with 5xx responses for five minutes.
+
+      - alert: QueryForgeHighRequestLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(http_server_requests_seconds_bucket{job="queryforge",uri!~"/actuator.*|UNKNOWN"}[5m])) by (le)
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: QueryForge API p95 latency is above one second
+          description: The 5-minute rolling p95 HTTP latency has exceeded one second for ten minutes.
+
+      - alert: QueryForgePostgresUnavailable
+        expr: pg_up{job="postgres"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: QueryForge PostgreSQL is unavailable
+          description: The PostgreSQL exporter cannot connect to the database.

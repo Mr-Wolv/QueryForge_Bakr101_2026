@@ -70,8 +70,7 @@ objects and must not be run against the only copy of the data.
 - Check `/actuator/health` before using the UI; a healthy API does not prove a
   benchmark dataset or k6 is ready.
 - Request metrics and Prometheus histograms are exposed locally at
-  `/actuator/metrics` and `/actuator/prometheus`. No alerting or external
-  monitoring service is configured.
+  `/actuator/metrics` and `/actuator/prometheus`.
 - The in-memory run-history snapshot refreshes every two seconds; newly written
   legacy result files can take up to that long to appear.
 - The benchmark runner invokes local tooling and can consume substantial CPU,
@@ -79,9 +78,89 @@ objects and must not be run against the only copy of the data.
 - The Compose database password has a development fallback. Set
   `QF_DB_PASSWORD` for shared local environments; this setting is not a
   production secrets-management solution.
-- No authenticated access, TLS termination, production database role
-  separation, automated backup schedule, or production rollback procedure is
-  provided. These are explicit blockers to public deployment.
+- The default Compose stack is local-only. A separate production-shaped stack
+  is described below, but it has not been deployed against a real identity
+  provider, domain, SMTP service, or production host.
+
+## Production-shaped deployment
+
+`docker-compose.production.yml` is deliberately separate from the local stack.
+It enables OIDC login, read-only access for ordinary signed-in users, group-gated
+operator actions, Caddy-managed HTTPS, private PostgreSQL and monitoring
+networks, scheduled database dumps, Prometheus alerts, and SMTP email delivery.
+Do not run it as a substitute for the local Compose profile.
+
+Before deploying, prepare a Linux Docker host with a public DNS name pointing to
+it, inbound TCP ports 80 and 443 open, an OIDC provider, an SMTP account, and a
+secure way to provision secret files. Create secret files outside the checkout
+with restrictive permissions; do not commit them. Set these deployment
+variables in the environment used for Compose:
+
+| Variable | Required value |
+| --- | --- |
+| `QF_DOMAIN` | Public DNS name for the application |
+| `QF_ACME_EMAIL` | Address for Caddy certificate notices |
+| `QF_OIDC_ISSUER_URI` | Exact OIDC issuer URL |
+| `QF_OIDC_CLIENT_ID` | OIDC client ID |
+| `QF_OIDC_CLIENT_SECRET_FILE` | Path to OIDC client-secret file |
+| `QF_OIDC_OPERATOR_GROUPS` | Comma-separated trusted group claim values allowed to run/cancel benchmarks and create comparisons |
+| `QF_OIDC_GROUP_CLAIM` | Optional claim name; defaults to `groups` |
+| `QF_POSTGRES_ADMIN_PASSWORD_FILE` | Path to a strong PostgreSQL initialization password |
+| `QF_APP_DB_PASSWORD_FILE` | Path to the app's read-only database password |
+| `QF_MONITOR_DB_PASSWORD_FILE` | Path to the monitoring role password |
+| `QF_SMTP_HOST` | SMTP hostname and port, typically port 587 |
+| `QF_SMTP_FROM` | Valid sender address |
+| `QF_SMTP_USERNAME` | SMTP authentication username |
+| `QF_SMTP_PASSWORD_FILE` | Path to the SMTP password file |
+| `QF_ALERT_EMAIL` | Alert recipient address |
+
+Register the OIDC callback URI as `https://<QF_DOMAIN>/login/oauth2/code/queryforge`.
+Group names must come from the provider's signed ID-token/user-info claim; leave
+`QF_OIDC_OPERATOR_GROUPS` empty to keep all signed-in users read-only. Only the
+edge service publishes host ports. PostgreSQL, the app backend, metrics, and
+alert management do not publish host ports. Do not separately expose backend
+port 8081; it is intended only for the internal readiness and metrics checks.
+
+Start and inspect the production-shaped stack:
+
+```sh
+docker compose -f docker-compose.production.yml config --quiet
+docker compose -f docker-compose.production.yml up --build -d --wait
+docker compose -f docker-compose.production.yml ps
+docker compose -f docker-compose.production.yml logs --tail=100 edge backend alertmanager
+```
+
+The database initializes the app and monitoring roles only when its data
+directory is first created. Existing production data requires a separately
+reviewed role migration; do not assume init scripts rerun against an existing
+volume. Backups are custom-format dumps written daily by default to the local
+`production_backups` volume and retained for 14 days. Tune
+`QF_BACKUP_INTERVAL_SECONDS` and `QF_BACKUP_RETENTION_DAYS` only after confirming
+the host's recovery objectives. This local volume is not an off-host backup:
+copy archives to independent protected storage and periodically restore one
+into an isolated database before relying on it.
+
+Prometheus evaluates backend availability, server-error rate, request latency,
+and PostgreSQL exporter availability. Alertmanager sends email using SMTP with
+TLS required. Confirm a real test notification arrives and inspect Prometheus
+targets/alerts before treating these controls as operational. No dashboard,
+on-call rotation, delivery guarantee, or external monitoring provider is
+included.
+
+For rollout, build and start the candidate stack, verify HTTPS, sign-in,
+read-only and operator behavior, health probes, monitoring targets, and a
+delivered test email before shifting DNS or announcing service. For rollback,
+retain the last known-good image tags and database backup, stop new traffic at
+the edge, restore the previous application image/configuration, then verify
+health and data. Do not roll back by deleting volumes or running destructive
+restore commands against the only database copy. Schema migrations must be
+backward-compatible with both the old and new application versions.
+
+This deployment still needs real-host evidence: verified certificate issuance,
+OIDC login and group claims, successful SMTP delivery, scheduled backup and
+restore, external security testing, off-host backup protection, an owned
+incident/alert response path, and a rehearsed rollback. Until then, it is
+production-shaped configuration, not a public-production readiness claim.
 
 ## Dependency and source checks
 
