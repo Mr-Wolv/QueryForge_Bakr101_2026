@@ -86,3 +86,15 @@
   border-radius: 4px;
   font-size: 0.875rem;
 }
+
+@media (max-width: 374px) {
+  .experiments h1 {
+    font-size: 1.5rem;
+  }
+  .list {
+    grid-template-columns: 1fr;
+  }
+  .card {
+    padding: 1.25rem;
+  }
+}

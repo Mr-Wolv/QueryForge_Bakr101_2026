@@ -119,3 +119,13 @@ h1 {
     }
     .card p.pass { color: var(--success, #2D5A4A); }
     .card p.fail { color: var(--error, #C44536); }
+
+    @media (max-width: 374px) {
+      h1 {
+        font-size: 1.5rem;
+      }
+      form {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
