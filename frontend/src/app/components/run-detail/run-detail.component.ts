@@ -2,7 +2,7 @@ import { Component, inject, ChangeDetectorRef, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink, Router } from '@angular/router';
-import { ApiService, ExperimentRun, Hint, RunEvent } from '../../services/api.service';
+import { ApiService, ExperimentRun, Hint, RunArtifact, RunEvent } from '../../services/api.service';
 import { LatencyChartComponent } from '../latency-chart/latency-chart.component';
 import { StateCardComponent } from '../state-card/state-card.component';
 
@@ -60,7 +60,7 @@ import { StateCardComponent } from '../state-card/state-card.component';
         </div>
       </div>
       <ng-template #noHints>
-          <app-state-card mode="empty" message="No hints for this run." />
+        <p class="hint-empty">No hints for this run.</p>
       </ng-template>
 
       <div class="actions" *ngIf="run">
@@ -85,10 +85,13 @@ import { StateCardComponent } from '../state-card/state-card.component';
         </label>
       </div>
       <div class="artifacts" *ngIf="filteredArtifacts.length > 0; else noArtifacts">
-        <a class="artifact" *ngFor="let a of filteredArtifacts" [href]="artifactUrl(a)" target="_blank" rel="noopener">
-          <span class="kind">{{a.kind}}</span>
-          <span class="desc">{{a.description}}</span>
-        </a>
+        <div class="artifact-row" *ngFor="let a of filteredArtifacts">
+          <a class="artifact" [href]="artifactUrl(a)" target="_blank" rel="noopener">
+            <span class="kind">{{a.kind}}</span>
+            <span class="desc">{{a.description}}</span>
+          </a>
+          <a class="plan-link" *ngIf="isPlanArtifact(a)" [routerLink]="['/plan', a.artifactId]">View plan</a>
+        </div>
       </div>
       <ng-template #noArtifacts>
         <app-state-card mode="empty" message="No artifacts available." />
@@ -115,7 +118,11 @@ export class RunDetailComponent implements OnDestroy {
     this.api.getRun(id).subscribe(r => {
       this.run = r;
       this.applyArtifactFilter();
-      this.api.getHints(id).subscribe(h => this.hints = h);
+      this.api.getHints(id).subscribe(h => {
+        this.hints = h;
+        // Zoneless app: the hints arrive after the outer markForCheck.
+        this.cdr.markForCheck();
+      });
       this.cdr.markForCheck();
     });
     this.connectSse(id);
@@ -190,9 +197,12 @@ export class RunDetailComponent implements OnDestroy {
     return Array.from(kinds);
   }
 
-  artifactUrl(a: { location: string }): string {
-    const name = a.location.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') ?? '';
-    return `/api/runs/${this.run!.id}/artifacts/${name}`;
+  artifactUrl(a: RunArtifact): string {
+    return `/api/runs/${this.run!.id}/artifacts/${encodeURIComponent(a.artifactId)}`;
+  }
+
+  isPlanArtifact(a: RunArtifact): boolean {
+    return a.kind === 'explain-plan';
   }
 
   applyArtifactFilter() {

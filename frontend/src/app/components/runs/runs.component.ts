@@ -1,7 +1,7 @@
 import { Component, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService, ExperimentRun } from '../../services/api.service';
 import { StateCardComponent } from '../state-card/state-card.component';
 import { SkeletonCardComponent } from '../skeleton-card/skeleton-card.component';
@@ -39,12 +39,19 @@ import { SkeletonCardComponent } from '../skeleton-card/skeleton-card.component'
         </label>
       </div>
       <div class="list" *ngIf="filteredRuns.length > 0; else empty">
+        <div class="list-head" aria-hidden="true">
+          <span>Run</span>
+          <span>Template</span>
+          <span>State</span>
+          <span class="num">p95 latency</span>
+          <span class="num">Throughput</span>
+        </div>
         <a class="row" *ngFor="let r of filteredRuns" [routerLink]="['/runs', r.id]">
           <span class="id">{{r.id}}</span>
           <span class="template">{{r.templateId}}</span>
-          <span class="state" [class.succeeded]="r.state==='SUCCEEDED'" [class.failed]="r.state==='FAILED'">{{r.state}}</span>
-          <span class="p95">{{r.metrics.iterationPercentiles['p95'] | number:'1.0-0'}} ms</span>
-          <span class="rps">{{r.metrics.rps | number:'1.2-2'}} RPS</span>
+          <span class="state" [class]="stateClass(r.state)">{{r.state}}</span>
+          <span class="p95">{{p95(r)}}</span>
+          <span class="rps">{{rps(r)}}</span>
         </a>
       </div>
       <ng-template #empty>
@@ -57,6 +64,7 @@ import { SkeletonCardComponent } from '../skeleton-card/skeleton-card.component'
 export class RunsComponent {
   private api = inject(ApiService);
   private cdr = inject(ChangeDetectorRef);
+  private route = inject(ActivatedRoute);
   runs: ExperimentRun[] = [];
   filteredRuns: ExperimentRun[] = [];
   templateFilter = '';
@@ -76,12 +84,28 @@ export class RunsComponent {
   }
 
   constructor() {
+    // The catalog links here with the template preselected.
+    this.templateFilter = this.route.snapshot.queryParamMap.get('template') ?? '';
     this.api.getRuns().subscribe(r => {
       this.runs = r;
       this.loading = false;
       this.applyFilter();
       this.cdr.markForCheck();
     });
+  }
+
+  stateClass(state: string): string {
+    return 'state ' + state.toLowerCase();
+  }
+
+  p95(run: ExperimentRun): string {
+    const value = run.metrics?.iterationPercentiles?.['p95'];
+    return value == null ? '—' : `${Math.round(Number(value)).toLocaleString('en-US')} ms`;
+  }
+
+  rps(run: ExperimentRun): string {
+    const value = run.metrics?.rps;
+    return value == null || value === 0 ? '—' : `${Number(value).toFixed(2)} RPS`;
   }
 
   applyFilter() {

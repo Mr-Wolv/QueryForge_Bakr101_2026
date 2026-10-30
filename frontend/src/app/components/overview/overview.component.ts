@@ -1,20 +1,86 @@
-import { Component, inject } from '@angular/core';
-import { CommonModule, AsyncPipe } from '@angular/common';
-import { map } from 'rxjs/operators';
-import { ApiService, Readiness, ExperimentRun } from '../../services/api.service';
+import { Component, ChangeDetectorRef, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
+import { ApiService, ExperimentRun, Readiness } from '../../services/api.service';
 import { StateCardComponent } from '../state-card/state-card.component';
 
 @Component({
   selector: 'app-overview',
   standalone: true,
-  imports: [CommonModule, AsyncPipe, StateCardComponent],
+  imports: [CommonModule, RouterLink, StateCardComponent],
   template: `
     <section class="overview">
-      <h1>QueryForge</h1>
-      <p class="subtitle">PostgreSQL performance evidence browser</p>
+      <header class="page-intro">
+        <p class="eyebrow">POSTGRESQL PERFORMANCE WORKSPACE</p>
+        <h1>QueryForge</h1>
+        <p class="subtitle">Turn database questions into evidence you can inspect, compare, and trust.</p>
+      </header>
 
-      <div class="grid">
-        <div class="card" *ngIf="readiness | async as r; else loadEnv">
+      <section class="first-session" *ngIf="showFirstSession">
+        <div class="first-session-copy">
+          <p class="eyebrow">{{ runsError ? 'WORKSPACE CONNECTION' : 'YOUR FIRST SESSION' }}</p>
+          <h2>{{ runsError ? 'Your workspace is waiting to connect.' : 'Start with a question. Leave with evidence.' }}</h2>
+          <p *ngIf="runsError" class="connection-error" role="status">
+            {{ runsError }} Your experiment history will appear here once the API is reachable.
+          </p>
+          <button *ngIf="runsError" type="button" class="retry-button" (click)="loadRuns()">Retry history</button>
+          <p *ngIf="!runsError">
+            Pick a prepared PostgreSQL experiment, tune its workload, and launch it. QueryForge keeps the run,
+            measurements, and query-plan evidence together.
+          </p>
+          <div class="first-session-actions">
+            <a class="primary-action" routerLink="/experiments">
+              Explore experiments
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="M3.5 10h12m-5-5 5 5-5 5" />
+              </svg>
+            </a>
+            <a class="secondary-action" routerLink="/runs">Browse run history</a>
+          </div>
+        </div>
+
+        <div class="first-session-guide" aria-label="How to get started">
+          <p class="guide-heading">A useful first question</p>
+          <a class="question-link" routerLink="/experiments" fragment="qf-001">
+            <span class="question-id">QF-001</span>
+            <span>
+              <strong>What does a workload-shaped index buy?</strong>
+              <small>Compare filtered search before and after a composite index.</small>
+            </span>
+            <span class="question-arrow" aria-hidden="true">↗</span>
+          </a>
+          <ol class="steps">
+            <li><span>01</span><span>Choose an experiment and adjust its workload.</span></li>
+            <li><span>02</span><span>Run it against your configured environment.</span></li>
+            <li><span>03</span><span>Inspect metrics, plans, and comparisons.</span></li>
+          </ol>
+        </div>
+      </section>
+
+      <div class="environment-status" *ngIf="readinessLoading" role="status">
+        <span class="status-mark loading-mark" aria-hidden="true"></span>
+        Checking the experiment environment…
+      </div>
+      <div class="environment-status unavailable" *ngIf="!readinessLoading && readinessError" role="status">
+        <span class="status-mark" aria-hidden="true"></span>
+        <span>{{ readinessError }}</span>
+        <button type="button" (click)="loadReadiness()">Retry connection</button>
+      </div>
+      <div class="environment-status" *ngIf="!readinessLoading && readiness as r">
+        <span class="status-mark" [class.ready-mark]="r.api.status === 'UP' && r.database.status === 'UP' && r.k6.status === 'UP'" aria-hidden="true"></span>
+        Environment · API {{r.api.status}} · PostgreSQL {{r.database.version}} · k6 {{r.k6.status}}
+      </div>
+
+      <div class="grid" *ngIf="!showFirstSession && runsLoading">
+        <app-state-card mode="loading" message="Loading experiment history…" />
+      </div>
+      <div class="grid" *ngIf="!showFirstSession && runsError">
+        <app-state-card mode="unavailable" [message]="runsError">
+          <button type="button" class="retry-button" (click)="loadRuns()">Retry history</button>
+        </app-state-card>
+      </div>
+      <div class="grid" *ngIf="!showFirstSession && !runsLoading && !runsError && runs.length > 0">
+        <div class="card" *ngIf="readiness as r; else readinessCard">
           <h2>Environment</h2>
           <dl>
             <dt>API</dt><dd [class.ok]="r.api.status==='UP'">{{r.api.status}}</dd>
@@ -25,31 +91,34 @@ import { StateCardComponent } from '../state-card/state-card.component';
             <dt>Checked</dt><dd>{{r.fingerprint.checkedAt | date:'short'}}</dd>
           </dl>
         </div>
-        <ng-template #loadEnv>
-          <app-state-card mode="loading" message="Loading environment…" />
+        <ng-template #readinessCard>
+          <div class="card">
+            <h2>Environment</h2>
+            <p class="card-message">{{readinessError || 'Checking environment readiness…'}}</p>
+            <button *ngIf="readinessError" type="button" class="retry-button" (click)="loadReadiness()">Retry connection</button>
+          </div>
         </ng-template>
 
-        <div class="card" *ngIf="latestRun | async as latestRun; else loadLatest">
+        <div class="card">
           <h2>Latest run</h2>
-          <p><strong>{{ $any(latestRun).id }}</strong></p>
-          <p>Template: {{ $any(latestRun).templateId }}</p>
-          <p>State: {{ $any(latestRun).state }}</p>
-          <p>p95: {{ $any(latestRun).metrics.iterationPercentiles['p95'] | number:'1.0-0' }} ms</p>
-          <p>RPS: {{ $any(latestRun).metrics.rps | number:'1.2-2' }}</p>
+          <p><strong>{{latestRun?.id}}</strong></p>
+          <p>Template: {{latestRun?.templateId}}</p>
+          <p>State: {{latestRun?.state}}</p>
+          <p>p95: {{latestRun?.metrics?.iterationPercentiles?.['p95'] | number:'1.0-0'}} ms</p>
+          <p>RPS: {{latestRun?.metrics?.rps | number:'1.2-2'}}</p>
+          <a class="card-link" *ngIf="latestRun" [routerLink]="['/runs', latestRun.id]">Open latest run</a>
         </div>
-        <ng-template #loadLatest>
-          <app-state-card mode="empty" message="No runs yet." />
-        </ng-template>
 
-        <div class="card" *ngIf="baselineRun | async as base; else loadBase">
-          <h2>Baseline (QF-001)</h2>
-          <p><strong>{{ $any(base).id }}</strong></p>
-          <p>p95: {{ $any(base).metrics.iterationPercentiles['p95'] | number:'1.0-0' }} ms</p>
-          <p>p50: {{ $any(base).metrics.iterationPercentiles['p50'] | number:'1.0-0' }} ms</p>
+        <div class="card">
+          <h2>Baseline · QF-001</h2>
+          <ng-container *ngIf="baselineRun as base; else noBaseline">
+            <p><strong>{{base.id}}</strong></p>
+            <p>p95: {{base.metrics?.iterationPercentiles?.['p95'] | number:'1.0-0'}} ms</p>
+            <p>p50: {{base.metrics?.iterationPercentiles?.['p50'] | number:'1.0-0'}} ms</p>
+            <a class="card-link" [routerLink]="['/runs', base.id]">Inspect baseline</a>
+          </ng-container>
+          <ng-template #noBaseline><p class="card-message">No QF-001 baseline is recorded yet.</p></ng-template>
         </div>
-        <ng-template #loadBase>
-          <app-state-card mode="unavailable" message="Baseline not found." />
-        </ng-template>
       </div>
     </section>
   `,
@@ -57,7 +126,75 @@ import { StateCardComponent } from '../state-card/state-card.component';
 })
 export class OverviewComponent {
   private api = inject(ApiService);
-  readiness = this.api.getReadiness();
-  latestRun = this.api.getRuns().pipe(map((runs: ExperimentRun[]) => runs[runs.length - 1] ?? null));
-  baselineRun = this.api.getRuns().pipe(map((runs: ExperimentRun[]) => runs.find((r: ExperimentRun) => r.id === 'qf001-baseline-search-1M-r10') ?? null));
+  private cdr = inject(ChangeDetectorRef);
+
+  runs: ExperimentRun[] = [];
+  readiness: Readiness | null = null;
+  runsLoading = true;
+  readinessLoading = true;
+  runsError = '';
+  readinessError = '';
+
+  get showFirstSession(): boolean {
+    return !this.runsLoading && (this.runsError.length > 0 || this.runs.length === 0);
+  }
+
+  get latestRun(): ExperimentRun | null {
+    return this.runs.length > 0 ? this.runs[this.runs.length - 1] : null;
+  }
+
+  get baselineRun(): ExperimentRun | null {
+    return this.runs.find(run => run.templateId === 'QF-001' && run.id.includes('baseline')) ?? null;
+  }
+
+  constructor() {
+    this.loadRuns();
+    this.loadReadiness();
+  }
+
+  loadRuns(): void {
+    this.runsLoading = true;
+    this.runsError = '';
+    this.api.getRuns().subscribe({
+      next: runs => {
+        this.runs = runs;
+        this.runsLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: error => {
+        this.runsError = this.errorMessage(error, 'Could not load experiment history.');
+        this.runsLoading = false;
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  loadReadiness(): void {
+    this.readinessLoading = true;
+    this.readinessError = '';
+    this.api.getReadiness().subscribe({
+      next: readiness => {
+        this.readiness = readiness;
+        this.readinessLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: error => {
+        this.readinessError = this.errorMessage(error, 'Could not check the experiment environment.');
+        this.readinessLoading = false;
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  private errorMessage(error: unknown, fallback: string): string {
+    if (typeof error === 'object' && error !== null) {
+      if ('status' in error && typeof error.status === 'number' && [0, 502, 503, 504].includes(error.status)) {
+        return `API unavailable (HTTP ${error.status}). Start the backend and try again.`;
+      }
+      if ('detail' in error && typeof error.detail === 'string') {
+        return error.detail;
+      }
+    }
+    return fallback;
+  }
 }

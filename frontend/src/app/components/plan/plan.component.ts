@@ -23,6 +23,8 @@ export class PlanComponent {
 
   constructor() {
     const id = this.route.snapshot.paramMap.get('id') || '';
-    this.artifactId = id + '-explain';
+    // Callers may pass either the plan artifact ID itself (as listed in a run's
+    // artifacts) or the older run stem, which kept the "-explain" suffix implicit.
+    this.artifactId = id.endsWith('-explain') ? id : id + '-explain';
   }
 }

@@ -16,6 +16,8 @@ export class ThemeService {
   apply(theme: 'light' | 'dark'): void {
     this.document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem(this.storageKey, theme);
+    // Canvas-rendered widgets (charts) cannot read the CSS variables themselves.
+    this.document.dispatchEvent(new CustomEvent('qf:theme', { detail: theme }));
   }
 
   toggle(): 'light' | 'dark' {

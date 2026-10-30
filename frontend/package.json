@@ -8,6 +8,7 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "e2e": "playwright test",
+    "e2e:ci": "playwright test e2e/first-session.spec.ts",
     "e2e:screenshots": "playwright test e2e/screenshots.spec.ts"
   },
   "private": true,

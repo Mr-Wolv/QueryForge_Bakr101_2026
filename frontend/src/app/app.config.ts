@@ -13,5 +13,3 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withInterceptors([apiInterceptor]))
   ]
 };
-
-console.log('[app.config] loaded');
