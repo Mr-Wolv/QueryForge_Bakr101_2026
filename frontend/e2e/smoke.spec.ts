@@ -50,7 +50,9 @@ test.describe('QueryForge E2E smoke', () => {
     await page.locator('select[name="b"]').selectOption(valB!);
     await page.locator('button[type="submit"]').click();
     await expect(page.locator('.result')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('.result h2')).toContainText('vs');
+    await expect(page.locator('.result h2.title')).toContainText('vs');
+    await expect(page.locator('.result table')).toBeVisible();
+    await expect(page.locator('.result table tbody th').first()).not.toBeEmpty();
   });
 
   test('artifact download returns content', async ({ page }) => {
@@ -63,6 +65,16 @@ test.describe('QueryForge E2E smoke', () => {
     // Verify the artifact endpoint returns content
     const resp = await page.request.get(href!);
     expect(resp.ok()).toBe(true);
+  });
+
+  test('explain plan artifact opens the plan explorer', async ({ page }) => {
+    await page.goto('/runs/qf001-baseline-search-1M-r10');
+    const planLink = page.locator('.plan-link').first();
+    await expect(planLink).toBeVisible();
+    await planLink.click();
+    await expect(page).toHaveURL(/\/plan\//);
+    await expect(page.locator('app-plan-explorer .tree')).toBeVisible();
+    await expect(page.locator('app-plan-node').first()).toBeVisible();
   });
 
   test('navigation is keyboard accessible', async ({ page }) => {

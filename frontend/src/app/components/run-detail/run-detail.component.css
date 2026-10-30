@@ -71,6 +71,15 @@
       color: var(--text, #111);
     }
     .hints { display: grid; gap: var(--space-3, 12px); }
+    .hint-empty {
+      margin: 0;
+      padding: var(--space-4, 1rem) var(--space-5, 24px);
+      border: 1px dashed var(--border, #e5e5e5);
+      border-radius: var(--radius-lg, 8px);
+      color: var(--text-muted, #999);
+      font-size: 14px;
+      background: transparent;
+    }
     .hint {
       background: var(--surface, #fff);
       border: 1px solid var(--border, #e5e5e5);
@@ -123,6 +132,23 @@
       background: var(--surface, #fff);
     }
     .artifacts { display: flex; flex-direction: column; gap: var(--space-2, 8px); }
+    .artifact-row { display: flex; align-items: center; gap: var(--space-2, 8px); }
+    .artifact-row .artifact { flex: 1; }
+    .plan-link {
+      flex: none;
+      padding: var(--space-2, 8px) var(--space-4, 1rem);
+      border: 1px solid var(--border, #e5e5e5);
+      border-radius: var(--radius-md, 4px);
+      font-size: 13px;
+      color: var(--text-secondary, #555);
+      text-decoration: none;
+      white-space: nowrap;
+      transition: all 150ms ease;
+    }
+    .plan-link:hover {
+      border-color: var(--accent, #111);
+      color: var(--text, #111);
+    }
     .artifact {
       display: grid;
       grid-template-columns: 1fr 2fr;
@@ -170,7 +196,8 @@
     .actions {
       display: flex;
       gap: var(--space-3, 12px);
-      margin-bottom: var(--space-5, 24px);
+      margin-top: var(--space-5, 24px);
+      margin-bottom: var(--space-6, 32px);
       flex-wrap: wrap;
     }
     .export {

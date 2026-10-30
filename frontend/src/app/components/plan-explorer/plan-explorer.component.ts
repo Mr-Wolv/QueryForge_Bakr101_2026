@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges, SimpleChanges, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, Input, OnChanges, SimpleChanges, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PlanNodeComponent } from '../plan-node/plan-node.component';
 import { ApiService } from '../../services/api.service';
@@ -58,6 +58,7 @@ export class PlanExplorerComponent implements OnChanges {
   nodeCount = 0;
 
   private api = inject(ApiService);
+  private cdr = inject(ChangeDetectorRef);
 
   ngOnChanges(changes: SimpleChanges): void {
     if ((changes['runId'] || changes['artifactId']) && this.artifactId) {
@@ -74,10 +75,14 @@ export class PlanExplorerComponent implements OnChanges {
         this.unknownTypes = this.collectUnknownTypes(data);
         this.nodeCount = this.countNodes(data);
         this.loaded = true;
+        // The app runs without zone.js, so async callbacks must schedule their own
+        // change detection or the tree never renders.
+        this.cdr.markForCheck();
       },
       error: () => {
         this.root = { type: 'error', properties: { error: 'failed to load plan' }, children: [], raw: '' };
         this.loaded = true;
+        this.cdr.markForCheck();
       }
     });
   }

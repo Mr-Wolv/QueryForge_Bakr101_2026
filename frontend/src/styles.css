@@ -57,6 +57,39 @@
   --transition-slow: 350ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* Dark theme.
+   Components draw on two token families (--text/--surface here and
+   --color-text-primary/--color-surface in tokens.css); both must flip together
+   or text ends up light-on-light. */
+[data-theme='dark'] {
+  --bg: #111113;
+  --surface: #191a1c;
+  --surface-raised: #202124;
+  --text: #ededed;
+  --text-secondary: #b0b0ac;
+  --text-muted: #8d8d88;
+  --border: #2c2d30;
+  --border-light: #232427;
+  --border-strong: #3d3e43;
+  --accent: #ededed;
+  --accent-hover: #ffffff;
+  --accent-subtle: rgba(255, 255, 255, 0.06);
+  --success: #5fce9d;
+  --success-bg: rgba(95, 206, 157, 0.12);
+  --warning: #e2b25f;
+  --warning-bg: rgba(226, 178, 95, 0.12);
+  --error: #e88b80;
+  --error-bg: rgba(232, 139, 128, 0.12);
+  --info: #8ab0f7;
+  --info-bg: rgba(138, 176, 247, 0.12);
+
+  color-scheme: dark;
+}
+
+[data-theme='dark'] body {
+  background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.03) 1px, transparent 0);
+}
+
 /* ============================================
    Global Reset & Base
    ============================================ */

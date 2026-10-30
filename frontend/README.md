@@ -1,59 +1,35 @@
-# Frontend
+# QueryForge frontend
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.2.5.
+The Angular application is served by Docker as part of the repository's Docker-first startup.
+From the repository root, follow the [main quick start](../README.md#quick-start-docker-first) to
+start PostgreSQL, the API, and the UI together. Compose assigns the frontend's host port dynamically;
+run `docker compose port frontend 80` to find the browser URL.
 
-## Development server
+## Local frontend development
 
-To start a local development server, run:
+Requirements: Node.js 24 and npm. The dev-server proxy sends `/api` requests to a backend at
+`http://localhost:8080`.
 
-```bash
-ng serve
+```powershell
+npm ci
+npm start
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+Open `http://localhost:4200`. To use another frontend port, pass it to the dev server:
 
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
+```powershell
+npm start -- --host 127.0.0.1 --port 4201
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+## Build and browser tests
 
-```bash
-ng generate --help
+```powershell
+npm run build
+npm run e2e:ci
 ```
 
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+The production build uses lazy-loaded routes and enforces the initial JavaScript/CSS bundle budget
+configured in `angular.json`. The fixture-backed `e2e:ci` suite starts its own frontend server and
+does not need a backend. The full `npm run e2e` suite requires the API on port 8080 and seeded run
+history; see [TEST_RUN.md](../TEST_RUN.md). For Compose, pin `QF_API_PORT=8080` in `.env` if the
+suite needs to reach the API at that fixed host port.

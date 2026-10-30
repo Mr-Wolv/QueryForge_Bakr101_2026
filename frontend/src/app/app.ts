@@ -1,16 +1,16 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ThemeService } from './core/theme/theme.service';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive],
   styleUrl: './app.css',
   templateUrl: './app.html',
 })
 export class App implements OnInit {
-  private theme = inject(ThemeService);
+  readonly theme = inject(ThemeService);
 
   ngOnInit(): void {
     this.theme.apply(this.theme.current);
@@ -22,9 +22,5 @@ export class App implements OnInit {
 
   themeLabel(): string {
     return this.theme.current === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
-  }
-
-  themeIcon(): string {
-    return this.theme.current === 'light' ? '☾' : '☀';
   }
 }

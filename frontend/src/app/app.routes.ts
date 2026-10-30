@@ -1,17 +1,11 @@
 import { Routes } from '@angular/router';
-import { OverviewComponent } from './components/overview/overview.component';
-import { ExperimentsComponent } from './components/experiments/experiments.component';
-import { RunsComponent } from './components/runs/runs.component';
-import { RunDetailComponent } from './components/run-detail/run-detail.component';
-import { PlanComponent } from './components/plan/plan.component';
-import { CompareComponent } from './components/compare/compare.component';
 
 export const routes: Routes = [
-  { path: '', component: OverviewComponent, pathMatch: 'full' },
-  { path: 'experiments', component: ExperimentsComponent },
-  { path: 'runs', component: RunsComponent },
-  { path: 'runs/:id', component: RunDetailComponent },
-  { path: 'plan/:id', component: PlanComponent },
-  { path: 'compare', component: CompareComponent },
+  { path: '', loadComponent: () => import('./components/overview/overview.component').then(m => m.OverviewComponent), pathMatch: 'full' },
+  { path: 'experiments', loadComponent: () => import('./components/experiments/experiments.component').then(m => m.ExperimentsComponent) },
+  { path: 'runs', loadComponent: () => import('./components/runs/runs.component').then(m => m.RunsComponent) },
+  { path: 'runs/:id', loadComponent: () => import('./components/run-detail/run-detail.component').then(m => m.RunDetailComponent) },
+  { path: 'plan/:id', loadComponent: () => import('./components/plan/plan.component').then(m => m.PlanComponent) },
+  { path: 'compare', loadComponent: () => import('./components/compare/compare.component').then(m => m.CompareComponent) },
   { path: '**', redirectTo: '', pathMatch: 'full' }
 ];

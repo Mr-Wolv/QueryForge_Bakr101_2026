@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
-import { tap, shareReplay, filter, switchMap } from 'rxjs/operators';
+import { map, tap, shareReplay } from 'rxjs/operators';
 
 export interface ExperimentTemplate {
   id: string;
@@ -14,6 +14,22 @@ export interface ExperimentTemplate {
   outputs: string[];
   reportPath: string;
   planPaths: string[];
+}
+
+export interface RunArtifact {
+  artifactId: string;
+  kind: string;
+  contentType: string;
+  description: string;
+}
+
+export interface PageResponse<T> {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
 }
 
 export interface ExperimentRun {
@@ -31,7 +47,7 @@ export interface ExperimentRun {
     iterationCount: number;
     rps: number;
   };
-  artifacts: { kind: string; contentType: string; location: string; description: string }[];
+  artifacts: RunArtifact[];
 }
 
 export interface Readiness {
@@ -48,6 +64,14 @@ export interface Hint {
   body: string;
 }
 
+export interface MetricDeltaValue {
+  left: number;
+  right: number;
+  delta: number;
+  deltaPercent: number | null;
+  unit: string;
+}
+
 export interface ComparisonResult {
   id: string;
   leftRunId: string;
@@ -60,9 +84,10 @@ export interface ComparisonResult {
     warnings: string[];
     diff: Record<string, string>;
   };
+  metricsDelta?: Record<string, MetricDeltaValue>;
   format: string;
   content: string;
-  artifacts: { kind: string; contentType: string; location: string; description: string }[];
+  artifacts: RunArtifact[];
   createdAt: string;
   createdBy: string | null;
 }
@@ -132,7 +157,8 @@ export class ApiService {
 
   getRuns(): Observable<ExperimentRun[]> {
     return this.cached<ExperimentRun[]>('runs', () =>
-      this.http.get<ExperimentRun[]>(`${this.base}/runs`)
+      this.http.get<PageResponse<ExperimentRun>>(`${this.base}/runs?page=0&size=100`)
+        .pipe(map(page => page.content))
     );
   }
 

@@ -1,8 +1,33 @@
 import { Component, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService, ExperimentRun, ComparisonResult } from '../../services/api.service';
+import { ApiService, ExperimentRun, ComparisonResult, MetricDeltaValue } from '../../services/api.service';
 import { StateCardComponent } from '../state-card/state-card.component';
+
+interface DeltaRow {
+  key: string;
+  label: string;
+  group: string;
+  left: string;
+  right: string;
+  delta: string;
+  percent: string;
+  direction: 'better' | 'worse' | 'neutral';
+}
+
+const LABELS: Record<string, { label: string; group: string; higherIsBetter: boolean }> = {
+  'iteration.p50': { label: 'p50', group: 'Iteration latency', higherIsBetter: false },
+  'iteration.p95': { label: 'p95', group: 'Iteration latency', higherIsBetter: false },
+  'iteration.p99': { label: 'p99', group: 'Iteration latency', higherIsBetter: false },
+  'iteration.avg': { label: 'average', group: 'Iteration latency', higherIsBetter: false },
+  'http.p50': { label: 'p50', group: 'HTTP latency', higherIsBetter: false },
+  'http.p95': { label: 'p95', group: 'HTTP latency', higherIsBetter: false },
+  'http.p99': { label: 'p99', group: 'HTTP latency', higherIsBetter: false },
+  'http.avg': { label: 'average', group: 'HTTP latency', higherIsBetter: false },
+  rps: { label: 'Throughput', group: 'Load', higherIsBetter: true },
+  iterations: { label: 'Iterations', group: 'Load', higherIsBetter: true },
+  testRunDurationMs: { label: 'Test run duration', group: 'Load', higherIsBetter: false },
+};
 
 @Component({
   selector: 'app-compare',
@@ -26,31 +51,73 @@ import { StateCardComponent } from '../state-card/state-card.component';
             <option *ngFor="let r of runs" [value]="r.id">{{r.id}}</option>
           </select>
         </label>
-        <button type="submit" [disabled]="loading">Compare</button>
+        <button type="submit" [disabled]="loading">{{loading ? 'Comparing…' : 'Compare'}}</button>
       </form>
 
       <app-state-card *ngIf="error" mode="unavailable" [message]="error" />
 
       <div class="result" *ngIf="result">
-        <h2>{{result.baseline}} <span class="vs">vs</span> {{result.candidate}}</h2>
-        <div class="verdict">
-          <span class="badge" [class.pass]="result.verdict.compatible" [class.fail]="!result.verdict.compatible">
+        <h2 class="title">
+          <span class="run">{{result.baseline}}</span>
+          <span class="vs">vs</span>
+          <span class="run">{{result.candidate}}</span>
+        </h2>
+        <div class="verdict" [class.pass]="result.verdict.compatible" [class.fail]="!result.verdict.compatible">
+          <span class="badge">
             {{result.verdict.compatible ? 'COMPATIBLE' : 'INCOMPATIBLE'}}
           </span>
-          <span *ngIf="result.verdict.warnings?.length" class="warnings">
-            {{result.verdict.warnings.length}} warning(s)
-          </span>
+          <p class="verdict-note">
+            {{result.verdict.compatible
+              ? 'Both runs share the same template, parameters and environment — deltas are a valid A/B result.'
+              : 'These runs differ in ways that make a controlled comparison unsafe. Deltas are shown for diagnosis only.'}}
+          </p>
         </div>
+
+        <div class="blockers" *ngIf="result.verdict.blockers?.length">
+          <h3>Blockers</h3>
+          <ul>
+            <li *ngFor="let b of result.verdict.blockers">{{b}}</li>
+          </ul>
+        </div>
+
         <div class="warnings-list" *ngIf="result.verdict.warnings?.length">
-          <div class="card" *ngFor="let w of result.verdict.warnings">
-            <p>{{w}}</p>
-          </div>
+          <h3>Warnings</h3>
+          <ul>
+            <li *ngFor="let w of result.verdict.warnings">{{w}}</li>
+          </ul>
         </div>
-        <div class="diff" *ngIf="result.verdict.diff && (result.verdict.diff | keyvalue)?.length">
-          <h3>Differences</h3>
-          <div class="card" *ngFor="let entry of result.verdict.diff | keyvalue">
-            <p><strong>{{entry.key}}:</strong> {{entry.value}}</p>
+
+        <div class="deltas" *ngIf="rows.length">
+          <div class="deltas-head">
+            <h2>Metric deltas</h2>
+            <p class="legend"><span class="swatch better"></span>improvement <span class="swatch worse"></span>regression</p>
           </div>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Metric</th>
+                <th scope="col" class="num">Baseline</th>
+                <th scope="col" class="num">Candidate</th>
+                <th scope="col" class="num">Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              <ng-container *ngFor="let row of rows">
+                <tr class="group-head" *ngIf="row.key === groupStart(row)">
+                  <th scope="rowgroup" colspan="4">{{row.group}}</th>
+                </tr>
+                <tr>
+                  <th scope="row">{{row.label}}</th>
+                  <td class="num">{{row.left}}</td>
+                  <td class="num">{{row.right}}</td>
+                  <td class="num delta" [ngClass]="row.direction">
+                    <span class="abs">{{row.delta}}</span>
+                    <span class="pct" *ngIf="row.percent">{{row.percent}}</span>
+                  </td>
+                </tr>
+              </ng-container>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -66,6 +133,7 @@ export class CompareComponent {
   private cdr = inject(ChangeDetectorRef);
   runs: ExperimentRun[] = [];
   result?: ComparisonResult;
+  rows: DeltaRow[] = [];
   loading = false;
   error?: string;
   a = '';
@@ -75,6 +143,12 @@ export class CompareComponent {
     this.api.getRuns().subscribe(r => { this.runs = r; this.cdr.markForCheck(); });
   }
 
+  groupStart(row: DeltaRow): string {
+    const index = this.rows.indexOf(row);
+    const previous = index > 0 ? this.rows[index - 1] : undefined;
+    return !previous || previous.group !== row.group ? row.key : '';
+  }
+
   compare() {
     const leftRunId = this.a;
     const rightRunId = this.b;
@@ -82,6 +156,7 @@ export class CompareComponent {
     this.loading = true;
     this.error = undefined;
     this.result = undefined;
+    this.rows = [];
     this.api.compare(leftRunId, rightRunId).subscribe({
       next: (res) => {
         this.result = {
@@ -89,14 +164,52 @@ export class CompareComponent {
           baseline: res.leftRunId,
           candidate: res.rightRunId,
         };
+        this.rows = this.buildRows(res.metricsDelta ?? {});
         this.loading = false;
         this.cdr.markForCheck();
       },
       error: (err: any) => {
-        this.error = err?.error?.error || 'Comparison failed';
+        this.error = err?.error?.error || err?.error?.message || 'Comparison failed';
         this.loading = false;
         this.cdr.markForCheck();
       }
     });
+  }
+
+  private buildRows(deltas: Record<string, MetricDeltaValue>): DeltaRow[] {
+    const groupRank = ['Iteration latency', 'HTTP latency', 'Load', 'Other'];
+    const rank = (group: string) => {
+      const index = groupRank.indexOf(group);
+      return index === -1 ? groupRank.length : index;
+    };
+    return Object.entries(deltas).map(([key, value]) => {
+      const meta = LABELS[key] ?? { label: key, group: 'Other', higherIsBetter: false };
+      const direction: DeltaRow['direction'] =
+        value.delta === 0 ? 'neutral'
+          : meta.higherIsBetter === value.delta > 0 ? 'better'
+            : 'worse';
+      const negative = value.delta < 0;
+      return {
+        key,
+        label: value.unit === 'ms' ? `${meta.label} (ms)` : meta.label,
+        group: meta.group,
+        left: this.formatValue(value.left, value.unit),
+        right: this.formatValue(value.right, value.unit),
+        delta: `${negative ? '−' : '+'}${this.formatValue(Math.abs(value.delta), value.unit, false)}`,
+        percent: value.deltaPercent === null || value.deltaPercent === undefined
+          ? ''
+          : `${value.deltaPercent > 0 ? '+' : negative ? '−' : ''}${Math.abs(value.deltaPercent).toFixed(1)}%`,
+        direction,
+      };
+    }).sort((a, b) => rank(a.group) - rank(b.group));
+  }
+
+  private formatValue(value: number, unit: string, withUnit = true): string {
+    const decimals = unit === 'req/s' ? 2 : 0;
+    const formatted = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }).format(value);
+    return withUnit && unit === 'req/s' ? `${formatted} req/s` : formatted;
   }
 }

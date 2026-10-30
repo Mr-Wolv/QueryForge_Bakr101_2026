@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('README screenshots', () => {
+test.describe('Local UI screenshots', () => {
   test('capture overview page', async ({ page }) => {
     await page.goto('/');
     await page.waitForTimeout(500); // let fonts/render settle
