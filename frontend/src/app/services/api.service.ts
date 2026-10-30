@@ -70,6 +70,16 @@ export interface ChartDataPoint {
   value: number;
 }
 
+export interface SseState {
+  state: string;
+}
+
+export interface RunEvent {
+  state: string;
+  durationMs?: number;
+  message?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private http = inject(HttpClient);
@@ -115,11 +125,20 @@ export class ApiService {
     return this.http.post<ExperimentRun>(`${this.base}/runs/${id}/start`, {});
   }
 
-  compare(a: string, b: string): Observable<ComparisonResult> {
-    return this.http.post<ComparisonResult>(`${this.base}/comparisons`, { a, b });
+  compare(leftRunId: string, rightRunId: string): Observable<ComparisonResult> {
+    return this.http.post<ComparisonResult>(`${this.base}/comparisons`, { leftRunId, rightRunId });
   }
 
   getHints(id: string): Observable<Hint[]> {
     return this.http.get<Hint[]>(`${this.base}/runs/${id}/hints`);
+  }
+
+  exportRun(id: string, format: 'markdown' | 'html' = 'markdown'): Observable<Blob> {
+    return this.http.get(`${this.base}/runs/${id}/export?format=${format}`, { responseType: 'blob' });
+  }
+
+  sseEvents(id: string): EventSource {
+    const base = window.location.origin;
+    return new EventSource(`${base}/api/runs/${id}/events`);
   }
 }

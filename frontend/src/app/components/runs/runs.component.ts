@@ -4,15 +4,17 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService, ExperimentRun } from '../../services/api.service';
 import { StateCardComponent } from '../state-card/state-card.component';
+import { SkeletonCardComponent } from '../skeleton-card/skeleton-card.component';
 
 @Component({
   selector: 'app-runs',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, StateCardComponent],
+  imports: [CommonModule, FormsModule, RouterLink, StateCardComponent, SkeletonCardComponent],
   template: `
     <section class="runs">
       <h1>Run history</h1>
-      <div class="filter" *ngIf="runs.length > 0">
+      <app-skeleton-card mode="loading" *ngIf="loading" />
+      <div class="filter" *ngIf="!loading && runs.length > 0">
         <label>
           Filter by template
           <select [(ngModel)]="templateFilter" (ngModelChange)="applyFilter()">
@@ -26,6 +28,14 @@ import { StateCardComponent } from '../state-card/state-card.component';
             <option value="">All states</option>
             <option *ngFor="let s of states" [value]="s">{{s}}</option>
           </select>
+        </label>
+        <label>
+          From date
+          <input type="date" [(ngModel)]="dateFrom" (ngModelChange)="applyFilter()" />
+        </label>
+        <label>
+          To date
+          <input type="date" [(ngModel)]="dateTo" (ngModelChange)="applyFilter()" />
         </label>
       </div>
       <div class="list" *ngIf="filteredRuns.length > 0; else empty">
@@ -51,6 +61,9 @@ export class RunsComponent {
   filteredRuns: ExperimentRun[] = [];
   templateFilter = '';
   stateFilter = '';
+  dateFrom = '';
+  dateTo = '';
+  loading = true;
 
   get templates(): string[] {
     const set = new Set(this.runs.map(r => r.templateId));
@@ -65,6 +78,7 @@ export class RunsComponent {
   constructor() {
     this.api.getRuns().subscribe(r => {
       this.runs = r;
+      this.loading = false;
       this.applyFilter();
       this.cdr.markForCheck();
     });
@@ -74,6 +88,14 @@ export class RunsComponent {
     this.filteredRuns = this.runs.filter(r => {
       if (this.templateFilter && r.templateId !== this.templateFilter) return false;
       if (this.stateFilter && r.state !== this.stateFilter) return false;
+      if (this.dateFrom && r.startedAt) {
+        const runDate = new Date(r.startedAt).toISOString().slice(0, 10);
+        if (runDate < this.dateFrom) return false;
+      }
+      if (this.dateTo && r.startedAt) {
+        const runDate = new Date(r.startedAt).toISOString().slice(0, 10);
+        if (runDate > this.dateTo) return false;
+      }
       return true;
     });
   }

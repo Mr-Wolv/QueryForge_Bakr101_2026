@@ -1,8 +1,8 @@
-import { Component, inject, ChangeDetectorRef } from '@angular/core';
+import { Component, inject, ChangeDetectorRef, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
-import { ApiService, ExperimentRun, Hint } from '../../services/api.service';
+import { ActivatedRoute, RouterLink, Router } from '@angular/router';
+import { ApiService, ExperimentRun, Hint, RunEvent } from '../../services/api.service';
 import { LatencyChartComponent } from '../latency-chart/latency-chart.component';
 import { StateCardComponent } from '../state-card/state-card.component';
 
@@ -54,11 +54,25 @@ import { StateCardComponent } from '../state-card/state-card.component';
         <div class="hint" *ngFor="let h of hints" [class.severity]="h.severity">
           <strong>{{h.title}}</strong>
           <p>{{h.body}}</p>
+          <button class="test-lab" (click)="testInLab(h.title)" *ngIf="h.severity === 'suggestion' || h.severity === 'warning'">
+            Test in lab
+          </button>
         </div>
       </div>
       <ng-template #noHints>
-        <app-state-card mode="empty" message="No hints for this run." />
+          <app-state-card mode="empty" message="No hints for this run." />
       </ng-template>
+
+      <div class="actions" *ngIf="run">
+        <button class="export" (click)="export('markdown')">Export Markdown</button>
+        <button class="export" (click)="export('html')">Export HTML</button>
+      </div>
+
+      <div class="sse-log" *ngIf="liveState">
+        <span class="sse-badge" [class.running]="liveState === 'RUNNING'" [class.succeeded]="liveState === 'SUCCEEDED'" [class.failed]="liveState === 'FAILED'">
+          Live: {{ liveState }}
+        </span>
+      </div>
 
       <h2>Artifacts</h2>
       <div class="filter" *ngIf="run.artifacts.length > 1">
@@ -83,15 +97,18 @@ import { StateCardComponent } from '../state-card/state-card.component';
   `,
   styleUrls: ['./run-detail.component.css']
 })
-export class RunDetailComponent {
+export class RunDetailComponent implements OnDestroy {
   private route = inject(ActivatedRoute);
   private api = inject(ApiService);
   private cdr = inject(ChangeDetectorRef);
+  private router = inject(Router);
   run?: ExperimentRun;
   starting = false;
   hints: Hint[] = [];
   artifactFilter = '';
   filteredArtifacts: ExperimentRun['artifacts'] = [];
+  liveState: string | null = null;
+  private sse?: EventSource;
 
   constructor() {
     const id = this.route.snapshot.paramMap.get('id') || '';
@@ -101,14 +118,64 @@ export class RunDetailComponent {
       this.api.getHints(id).subscribe(h => this.hints = h);
       this.cdr.markForCheck();
     });
+    this.connectSse(id);
+  }
+
+  ngOnDestroy(): void {
+    if (this.sse) {
+      this.sse.close();
+    }
+  }
+
+  private connectSse(id: string) {
+    try {
+      this.sse = this.api.sseEvents(id);
+      this.sse.onmessage = (ev) => {
+        try {
+          const data: RunEvent = JSON.parse(ev.data);
+          this.liveState = data.state;
+          this.cdr.markForCheck();
+        } catch {}
+      };
+      this.sse.onerror = () => {
+        this.sse?.close();
+      };
+    } catch {}
   }
 
   start() {
     if (!this.run) return;
     this.starting = true;
     this.api.startRun(this.run.id).subscribe({
-      next: updated => this.run = updated,
+      next: updated => { this.run = updated; this.starting = false; this.cdr.markForCheck(); },
       error: () => { this.starting = false; }
+    });
+  }
+
+  export(format: 'markdown' | 'html') {
+    if (!this.run) return;
+    this.api.exportRun(this.run.id, format).subscribe({
+      next: (blob: Blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${this.run!.id}.${format === 'html' ? 'html' : 'md'}`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      error: () => {}
+    });
+  }
+
+  testInLab(hintTitle: string) {
+    // Phase 4: create a candidate run to test the suggested optimization
+    if (!this.run) return;
+    this.api.createRun(this.run.templateId, {
+      ...Object.fromEntries(Object.entries(this.run.labels)),
+      OUT: 'lab-' + Date.now().toString(36)
+    }).subscribe({
+      next: (run) => { this.router.navigate(['/runs', run.id]); },
+      error: () => {}
     });
   }
 

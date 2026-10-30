@@ -8,6 +8,9 @@
     <a routerLink="/runs" routerLinkActive="active">Runs</a>
     <a routerLink="/compare" routerLinkActive="active">Compare</a>
   </nav>
+  <button class="theme-toggle" (click)="toggleTheme()" [attr.aria-label]="themeLabel()">
+    {{ themeIcon() }}
+  </button>
 </header>
 
 <main id="main" class="main">

@@ -3,15 +3,17 @@ import { CommonModule } from '@angular/common';
 import { RouterLink, Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { StateCardComponent } from '../state-card/state-card.component';
+import { SkeletonCardComponent } from '../skeleton-card/skeleton-card.component';
 
 @Component({
   selector: 'app-experiments',
   standalone: true,
-  imports: [CommonModule, RouterLink, StateCardComponent],
+  imports: [CommonModule, RouterLink, StateCardComponent, SkeletonCardComponent],
   template: `
     <section class="catalog">
       <h1>Experiment catalog</h1>
-      <div class="list" *ngIf="templates.length > 0; else empty">
+      <app-skeleton-card mode="loading" *ngIf="loading" />
+      <div class="list" *ngIf="!loading && templates.length > 0; else empty">
         <div class="card" *ngFor="let t of templates">
           <a [routerLink]="['/runs', t.id]">
             <h2>{{t.id}} — {{t.title}}</h2>
@@ -39,10 +41,12 @@ export class ExperimentsComponent {
   private router = inject(Router);
   private cdr = inject(ChangeDetectorRef);
   templates: any[] = [];
+  loading = true;
 
   constructor() {
     this.api.getExperiments().subscribe(t => {
       this.templates = t || [];
+      this.loading = false;
       this.cdr.markForCheck();
     });
   }

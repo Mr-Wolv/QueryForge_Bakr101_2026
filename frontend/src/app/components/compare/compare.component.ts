@@ -76,13 +76,13 @@ export class CompareComponent {
   }
 
   compare() {
-    const a = this.a;
-    const b = this.b;
-    if (!a || !b) return;
+    const leftRunId = this.a;
+    const rightRunId = this.b;
+    if (!leftRunId || !rightRunId) return;
     this.loading = true;
     this.error = undefined;
     this.result = undefined;
-    this.api.compare(a, b).subscribe({
+    this.api.compare(leftRunId, rightRunId).subscribe({
       next: (res) => {
         this.result = {
           ...res,
