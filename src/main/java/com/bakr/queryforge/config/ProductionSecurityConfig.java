@@ -29,7 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
-@Profile("production")
+@Profile({"production", "local-auth"})
 public class ProductionSecurityConfig {
 
     private static final RequestMatcher API_REQUESTS = request -> {

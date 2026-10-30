@@ -1,0 +1,13 @@
+global:
+  smtp_smarthost: mailpit:1025
+  smtp_from: queryforge@localhost
+  smtp_require_tls: false
+
+route:
+  receiver: local-email
+  group_by: [alertname]
+
+receivers:
+  - name: local-email
+    email_configs:
+      - to: operations@queryforge.local

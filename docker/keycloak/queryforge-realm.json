@@ -1,0 +1,61 @@
+{
+  "realm": "queryforge",
+  "enabled": true,
+  "displayName": "QueryForge Local",
+  "groups": [
+    { "name": "readers" },
+    { "name": "benchmark-operators" }
+  ],
+  "clients": [
+    {
+      "clientId": "queryforge-local",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "queryforge-local-secret",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:8080/login/oauth2/code/queryforge"],
+      "webOrigins": ["http://localhost:8080"],
+      "defaultClientScopes": ["profile", "email", "roles"],
+      "optionalClientScopes": ["groups"],
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "groups"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "viewer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Vera",
+      "lastName": "Viewer",
+      "email": "viewer@queryforge.local",
+      "credentials": [{"type": "password", "value": "viewer-local-only", "temporary": false}],
+      "groups": ["readers"]
+    },
+    {
+      "username": "operator",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Owen",
+      "lastName": "Operator",
+      "email": "operator@queryforge.local",
+      "credentials": [{"type": "password", "value": "operator-local-only", "temporary": false}],
+      "groups": ["benchmark-operators"]
+    }
+  ]
+}

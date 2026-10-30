@@ -73,10 +73,46 @@ curl "http://<backend-host>:<assigned-port>/api/products/keyset?category=1&statu
 ```
 
 Host-based Spring Boot startup binds the API to `127.0.0.1` by default. Compose listens on the
-container interface but publishes the API only on host loopback. The default profile is a
-local-development mode without API authentication; do not expose that stack to other machines or
-the public internet. The separate production-shaped OIDC/TLS stack and its remaining deployment
-requirements are documented in [docs/operations.md](docs/operations.md).
+container interface but publishes the API only on host loopback. The command above is the explicit
+**development bypass**: it has no authentication and must never be exposed beyond the local
+machine. The normal portfolio/demo stack is the authenticated local environment below.
+
+### Authenticated local environment
+
+This stack runs a real Keycloak OIDC login, PostgreSQL, the application, Prometheus,
+Alertmanager, and a local-only Mailpit SMTP sink. It requires no cloud account or external
+identity/email provider. Ports are loopback-only: UI `8080`, API `8081`, Keycloak is available
+through the UI at `/id/`, Mailpit `8025`, and Prometheus `9090` (override with the corresponding
+`QF_*_PORT` variables).
+
+```bash
+# PowerShell
+$env:QF_SPRING_PROFILE = 'local-auth'
+docker compose --profile app --profile authenticated --profile monitoring up --build -d --wait
+```
+
+Open `http://localhost:8080` and sign in with either local-only account:
+
+| Account | Password | Permission |
+| --- | --- | --- |
+| `viewer` | `viewer-local-only` | Read results, plans, history, and permitted artifacts |
+| `operator` | `operator-local-only` | Viewer permissions plus create, start, cancel, and compare runs |
+
+The Keycloak administration account is `admin` / `admin-local-only` by default; change it with
+`QF_KEYCLOAK_ADMIN` and `QF_KEYCLOAK_ADMIN_PASSWORD` before use outside an isolated workstation.
+These credentials are intentionally local fixture credentials, never production credentials.
+
+Verify local operational email by opening `http://localhost:8025`. Alertmanager delivers to that
+sink only. Prometheus targets and alerts are available at `http://localhost:9090`; use its alert
+API or a deliberately stopped backend to exercise an alert. Stop the stack without removing data:
+
+```bash
+docker compose --profile app --profile authenticated --profile monitoring down
+```
+
+Do not add `-v` unless you intentionally want to delete PostgreSQL, Keycloak, Prometheus, and
+Alertmanager data. The separate production-shaped TLS deployment and its external requirements
+remain documented in [docs/operations.md](docs/operations.md).
 
 Stop the stack with `docker compose --profile app down`; add `-v` only when you intentionally
 want to delete the database volume and its contents. The same Compose commands work in PowerShell,
