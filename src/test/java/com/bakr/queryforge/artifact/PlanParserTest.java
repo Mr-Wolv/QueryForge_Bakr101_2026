@@ -76,9 +76,9 @@ class PlanParserTest {
                 """;
         PlanNode root = parser.parse(raw);
         assertThat(root.children()).hasSize(2);
-        assertThat(root.children().get(0).type()).isEqualTo("Buffers: shared hit=15");
+        assertThat(root.children().get(0).type()).isEqualTo("Buffers");
         assertThat(root.children().get(0).properties()).containsEntry("buffers", "shared hit=15");
-        assertThat(root.children().get(1).type()).isEqualTo("Heap Blocks: exact=1");
+        assertThat(root.children().get(1).type()).isEqualTo("Heap Blocks");
         assertThat(root.children().get(1).properties()).containsEntry("heapBlocks", "exact=1");
     }
 }

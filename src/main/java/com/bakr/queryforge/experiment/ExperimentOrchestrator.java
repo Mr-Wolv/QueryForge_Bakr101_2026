@@ -48,6 +48,16 @@ public class ExperimentOrchestrator {
         performRestartRecovery();
     }
 
+    private void cleanupActiveRuns() {
+        Set<String> terminal = Set.of(
+                ExperimentRunState.SUCCEEDED.name(),
+                ExperimentRunState.FAILED.name(),
+                ExperimentRunState.CANCELLED.name(),
+                ExperimentRunState.TIMED_OUT.name()
+        );
+        activeRuns.entrySet().removeIf(e -> terminal.contains(e.getValue().state()));
+    }
+
     public ExperimentRun createRun(String templateId, Map<String, String> parameters, String clientRequestId) {
         ExperimentTemplate template = templates.findById(templateId)
                 .orElseThrow(() -> new IllegalArgumentException("unknown template: " + templateId));
@@ -66,8 +76,10 @@ public class ExperimentOrchestrator {
         ExperimentRun run = new ExperimentRun(
                 runId, templateId, ExperimentRunState.QUEUED.name(),
                 Instant.now(), 0, labels,
+                parameters,
                 com.bakr.queryforge.measurement.Metrics.empty(),
-                List.of()
+                List.of(),
+                "unknown"
         );
         activeRuns.put(runId, run);
         return run;
@@ -79,8 +91,9 @@ public class ExperimentOrchestrator {
 
         run = new ExperimentRun(
                 run.id(), run.templateId(), ExperimentRunState.RUNNING.name(),
-                run.startedAt(), run.durationMs(), run.labels(),
-                run.metrics(), run.artifacts()
+                run.startedAt(), run.durationMs(), run.labels(), run.parameters(),
+                run.metrics(), run.artifacts(),
+                run.appCommit() != null ? run.appCommit() : "unknown"
         );
         activeRuns.put(runId, run);
 
@@ -147,8 +160,10 @@ public class ExperimentOrchestrator {
             runningProcesses.remove(runId);
             long dur = System.currentTimeMillis() - started;
             run = new ExperimentRun(run.id(), run.templateId(), terminalState.get().name(),
-                    run.startedAt(), dur, run.labels(), run.metrics(), artifacts);
+                    run.startedAt(), dur, run.labels(), run.parameters(), run.metrics(), artifacts,
+                    run.appCommit() != null ? run.appCommit() : "unknown");
             activeRuns.put(runId, run);
+            cleanupActiveRuns();
             writeManifest(runId, run, outcome.get(), artifacts);
         }
         return run;
@@ -166,8 +181,9 @@ public class ExperimentOrchestrator {
 
         run = new ExperimentRun(
                 run.id(), run.templateId(), ExperimentRunState.CANCELLED.name(),
-                run.startedAt(), run.durationMs(), run.labels(),
-                run.metrics(), run.artifacts()
+                run.startedAt(), run.durationMs(), run.labels(), run.parameters(),
+                run.metrics(), run.artifacts(),
+                run.appCommit() != null ? run.appCommit() : "unknown"
         );
         activeRuns.put(runId, run);
         writeManifest(runId, run, "cancelled by user", List.of());
@@ -197,8 +213,10 @@ public class ExperimentOrchestrator {
                                         Instant.ofEpochMilli(startedAt),
                                         node.path("durationMs").asLong(0),
                                         Map.of(),
+                                        Map.of(),
                                         com.bakr.queryforge.measurement.Metrics.empty(),
-                                        List.of()
+                                        List.of(),
+                                        "unknown"
                                 );
                                 activeRuns.put(runId, recovered);
                                 writeManifest(runId, recovered, "recovered: interrupted run marked FAILED on restart", List.of());
@@ -298,7 +316,7 @@ public class ExperimentOrchestrator {
                         run.state().matches("SUCCEEDED|FAILED|CANCELLED|TIMED_OUT") ? Instant.now() : null,
                         run.durationMs(),
                         outcome,
-                        run.labels(), // parameters stored in labels
+                        run.parameters(),
                         envFingerprint,
                         "V1", // migrationVersion
                         "baseline", // indexState
@@ -350,8 +368,9 @@ public class ExperimentOrchestrator {
                     : Instant.parse(node.path("startedAt").asText()).toEpochMilli();
             long dur = node.path("durationMs").asLong(0);
             return new ExperimentRun(id, templateId, state,
-                    Instant.ofEpochMilli(startedAt), dur, Map.of(),
-                    com.bakr.queryforge.measurement.Metrics.empty(), List.of());
+                    Instant.ofEpochMilli(startedAt), dur, Map.of(), Map.of(),
+                    com.bakr.queryforge.measurement.Metrics.empty(), List.of(),
+                    null);
         } catch (Exception e) {
             return null;
         }

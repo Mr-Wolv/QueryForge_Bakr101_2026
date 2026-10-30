@@ -113,8 +113,10 @@ class ComparisonServiceTest {
                 runId, templateId, "SUCCEEDED",
                 Instant.now().minusSeconds(30), 5000,
                 Map.of("clientRequestId", "test-" + runId),
+                Map.of(),
                 com.bakr.queryforge.measurement.Metrics.empty(),
-                List.of()
+                List.of(),
+                "unknown"
         );
         try {
             Field activeRunsField = ExperimentOrchestrator.class.getDeclaredField("activeRuns");

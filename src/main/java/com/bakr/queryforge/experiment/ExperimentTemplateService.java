@@ -170,8 +170,10 @@ public class ExperimentTemplateService {
                     startedAt,
                     metrics.testRunDurationMs(),
                     Map.of(),
+                    Map.of(),
                     metrics,
-                    artifacts
+                    artifacts,
+                    "unknown"
             );
         } catch (Exception e) {
             return null;

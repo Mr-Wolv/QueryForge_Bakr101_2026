@@ -16,6 +16,8 @@ public record ExperimentRun(
         Instant startedAt,
         long durationMs,
         Map<String, String> labels,
+        Map<String, String> parameters,
         com.bakr.queryforge.measurement.Metrics metrics,
-        List<RunArtifact> artifacts) {
+        List<RunArtifact> artifacts,
+        String appCommit) {
 }

@@ -1,8 +1,13 @@
 package com.bakr.queryforge.experiment;
 
 import com.bakr.queryforge.api.dto.ExperimentRunRequest;
+import com.bakr.queryforge.artifact.ArtifactService;
+import com.bakr.queryforge.artifact.RunArtifact;
 import com.bakr.queryforge.experiment.ExperimentTemplate;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -10,6 +15,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.validation.Valid;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -24,11 +30,13 @@ public class ExperimentRunController {
     private final ExperimentRunService runs;
     private final ExperimentTemplateService templates;
     private final ExperimentOrchestrator orchestrator;
+    private final ArtifactService artifactService;
 
-    public ExperimentRunController(ExperimentRunService runs, ExperimentTemplateService templates, ExperimentOrchestrator orchestrator) {
+    public ExperimentRunController(ExperimentRunService runs, ExperimentTemplateService templates, ExperimentOrchestrator orchestrator, ArtifactService artifactService) {
         this.runs = runs;
         this.templates = templates;
         this.orchestrator = orchestrator;
+        this.artifactService = artifactService;
     }
 
     @PostMapping
@@ -47,7 +55,7 @@ public class ExperimentRunController {
         try {
             ExperimentTemplate template = templates.findById(run.templateId())
                     .orElseThrow(() -> new IllegalStateException("template not found: " + run.templateId()));
-            ExperimentRun started = orchestrator.run(id, template, run.labels());
+            ExperimentRun started = orchestrator.run(id, template, run.parameters());
             return ResponseEntity.ok(started);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -87,5 +95,18 @@ public class ExperimentRunController {
                 "state", "CANCELLED",
                 "message", "run cancelled successfully"
         ));
+    }
+
+    @GetMapping("/{id}/artifacts/{artifactId}")
+    public ResponseEntity<Resource> artifact(@PathVariable String id, @PathVariable String artifactId) {
+        runs.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "run not found"));
+        Path path = artifactService.resolve(artifactId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "artifact not found"));
+        Resource resource = new org.springframework.core.io.FileSystemResource(path);
+        String contentType = artifactService.guessContentType(path);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + path.getFileName() + "\"")
+                .contentType(MediaType.parseMediaType(contentType))
+                .body(resource);
     }
 }

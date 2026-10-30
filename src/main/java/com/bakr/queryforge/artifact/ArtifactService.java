@@ -29,7 +29,13 @@ public class ArtifactService {
     private static final Path ROOT = Paths.get("").toAbsolutePath();
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private static final Map<String, String> PLAN_CACHE = new HashMap<>();
+    private static final int PLAN_CACHE_MAX = 64;
+    private static final Map<String, String> PLAN_CACHE = new LinkedHashMap<String, String>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+            return size() > PLAN_CACHE_MAX;
+        }
+    };
 
     public Optional<Path> resolve(String artifactId) {
         if (artifactId == null || artifactId.isBlank()) return Optional.empty();

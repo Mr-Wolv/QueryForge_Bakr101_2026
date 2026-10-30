@@ -1,5 +1,6 @@
 package com.bakr.queryforge.experiment;
 
+import com.bakr.queryforge.artifact.ArtifactService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -10,34 +11,26 @@ import java.util.*;
 public class HintController {
 
     private final ExperimentRunService runs;
+    private final ArtifactService artifactService;
+    private final HintService hintService;
 
-    public HintController(ExperimentRunService runs) {
+    public HintController(ExperimentRunService runs, ArtifactService artifactService, HintService hintService) {
         this.runs = runs;
+        this.artifactService = artifactService;
+        this.hintService = hintService;
     }
 
     @GetMapping("/{id}/hints")
-    public ResponseEntity<List<Map<String, String>>> hints(@PathVariable String id) {
+    public ResponseEntity<List<HintService.Hint>> hints(@PathVariable String id) {
         return runs.findById(id)
                 .map(run -> {
-                    List<Map<String, String>> hints = new ArrayList<>();
-                    hints.add(Map.of(
-                            "id", "h1",
-                            "severity", "info",
-                            "title", "p95 latency",
-                            "body", "Current p95 is within normal bounds for the selected dataset size."
-                    ));
-                    hints.add(Map.of(
-                            "id", "h2",
-                            "severity", "suggestion",
-                            "title", "Consider an index",
-                            "body", "A btree index on the filtered column could reduce p95 by ~15-20%."
-                    ));
-                    hints.add(Map.of(
-                            "id", "h3",
-                            "severity", "warning",
-                            "title", "High p99 tail",
-                            "body", "p99 latency is significantly higher than p95; investigate cache eviction."
-                    ));
+                    String plan = "";
+                    try {
+                        plan = artifactService.readPlan(id + "-explain");
+                    } catch (Exception e) {
+                        // no plan available
+                    }
+                    List<HintService.Hint> hints = hintService.generate(plan, run.metrics());
                     return ResponseEntity.ok(hints);
                 })
                 .orElseGet(() -> ResponseEntity.notFound().build());

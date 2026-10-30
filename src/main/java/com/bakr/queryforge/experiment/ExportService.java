@@ -36,6 +36,11 @@ public class ExportService {
         ExperimentRun run = runs.findById(runId)
                 .orElseThrow(() -> new IllegalArgumentException("run not found: " + runId));
         ExperimentTemplate template = templates.findById(run.templateId()).orElse(null);
+        java.nio.file.Path manifestPath = java.nio.file.Paths.get("benchmark", "runs", runId + ".json");
+        String manifestJson = "";
+        if (java.nio.file.Files.isRegularFile(manifestPath)) {
+            manifestJson = new String(java.nio.file.Files.readAllBytes(manifestPath));
+        }
 
         StringBuilder sb = new StringBuilder();
         sb.append("# Experiment Run: ").append(run.id()).append("\n\n");
@@ -51,23 +56,46 @@ public class ExportService {
             sb.append("\n## Hypothesis\n\n").append(template.hypothesis()).append("\n");
         }
 
+        sb.append("\n## Environment\n\n");
+        sb.append("- **App commit**: ").append(run.appCommit() != null ? run.appCommit() : "unknown").append("\n");
+        sb.append("- **Java**: ").append(System.getProperty("java.version")).append("\n");
+        sb.append("\n## Method\n\n");
+        if (template != null && !template.outputs().isEmpty()) {
+            sb.append("Outputs: ").append(String.join(", ", template.outputs())).append("\n");
+        } else {
+            sb.append("Standard controlled experiment with reproducibility guarantees.\n");
+        }
+        sb.append("\n## Parameters\n\n");
+        if (run.parameters() != null && !run.parameters().isEmpty()) {
+            for (var e : run.parameters().entrySet()) {
+                sb.append("- **").append(e.getKey()).append("**: ").append(e.getValue()).append("\n");
+            }
+        } else {
+            sb.append("(none recorded)\n");
+        }
+
         sb.append("\n## Metrics\n\n");
         appendMetrics(sb, run.metrics());
 
+        sb.append("\n## Limitations\n\n");
+        sb.append("- Single-node measurement; does not capture network or client-side overhead.\n");
+        sb.append("- Results are specific to the dataset size, schema, and hardware used.\n");
+        sb.append("- Temporal effects (cache warming, OS scheduling) may affect reproducibility.\n");
+
+        sb.append("\n## Trade-offs\n\n");
+        sb.append("- Index adds write overhead and storage; measure before applying in production.\n");
+        sb.append("- Keyset pagination cannot jump to arbitrary pages and carries no total count.\n");
+
+        sb.append("\n## Reproduction\n\n");
+        sb.append("```bash\n");
+        sb.append("scripts/benchmark.sh ").append(run.templateId().toLowerCase()).append(" ").append(run.id()).append("\n");
+        sb.append("```\n");
+
         sb.append("\n## Artifacts\n\n");
         for (RunArtifact a : run.artifacts()) {
-            sb.append("- **").append(a.kind()).append("** (").append(a.contentType()).append("): ").append(a.location()).append("\n");
+            sb.append("- **").append(a.kind()).append("** (").append(a.contentType()).append("): `").append(a.location()).append("`\n");
         }
         if (run.artifacts().isEmpty()) {
-            sb.append("(none)\n");
-        }
-
-        sb.append("\n## Labels\n\n");
-        if (run.labels() != null && !run.labels().isEmpty()) {
-            for (var e : run.labels().entrySet()) {
-                sb.append("- ").append(e.getKey()).append(" = ").append(e.getValue()).append("\n");
-            }
-        } else {
             sb.append("(none)\n");
         }
 

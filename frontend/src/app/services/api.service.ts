@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, of } from 'rxjs';
+import { tap, shareReplay } from 'rxjs/operators';
 
 export interface ExperimentTemplate {
   id: string;
@@ -22,6 +23,7 @@ export interface ExperimentRun {
   startedAt: string;
   durationMs: number;
   labels: Record<string, string>;
+  parameters: Record<string, string>;
   metrics: {
     testRunDurationMs: number;
     iterationPercentiles: Record<string, number>;
@@ -85,6 +87,20 @@ export class ApiService {
   private http = inject(HttpClient);
   private base = '/api';
 
+  private readonly cache = new Map<string, { expiry: number; value: any }>();
+  private readonly ttlMs = 30_000;
+
+  private cached<T>(key: string, request: () => Observable<T>): Observable<T> {
+    const hit = this.cache.get(key);
+    if (hit && hit.expiry > Date.now()) {
+      return of(hit.value);
+    }
+    return request().pipe(
+      tap(v => this.cache.set(key, { expiry: Date.now() + this.ttlMs, value: v })),
+      shareReplay(1)
+    );
+  }
+
   getExperiments(): Observable<ExperimentTemplate[]> {
     return this.http.get<ExperimentTemplate[]>(`${this.base}/experiments`);
   }
@@ -98,7 +114,9 @@ export class ApiService {
   }
 
   getRuns(): Observable<ExperimentRun[]> {
-    return this.http.get<ExperimentRun[]>(`${this.base}/runs`);
+    return this.cached<ExperimentRun[]>('runs', () =>
+      this.http.get<ExperimentRun[]>(`${this.base}/runs`)
+    );
   }
 
   getRun(id: string): Observable<ExperimentRun> {
@@ -115,6 +133,10 @@ export class ApiService {
 
   getArtifactMeta(artifactId: string): Observable<any> {
     return this.http.get(`${this.base}/artifacts/${artifactId}/meta`);
+  }
+
+  getParsedPlan(artifactId: string): Observable<any> {
+    return this.http.get(`${this.base}/artifacts/${artifactId}/plan`);
   }
 
   createRun(templateId: string, parameters: Record<string, string>, clientRequestId?: string): Observable<ExperimentRun> {

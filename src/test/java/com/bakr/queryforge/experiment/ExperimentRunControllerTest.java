@@ -1,5 +1,6 @@
 package com.bakr.queryforge.experiment;
 
+import com.bakr.queryforge.artifact.ArtifactService;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.http.HttpStatus;
@@ -18,11 +19,12 @@ class ExperimentRunControllerUnitTest {
         ExperimentRunService runs = Mockito.mock(ExperimentRunService.class);
         ExperimentTemplateService templates = Mockito.mock(ExperimentTemplateService.class);
         ExperimentOrchestrator orchestrator = Mockito.mock(ExperimentOrchestrator.class);
-        ExperimentRunController controller = new ExperimentRunController(runs, templates, orchestrator);
+        ExperimentRunController controller = new ExperimentRunController(runs, templates, orchestrator, new ArtifactService());
 
         ExperimentRun created = new ExperimentRun("run-1", "QF-001", "QUEUED",
-                java.time.Instant.now(), 0, Map.of(),
-                com.bakr.queryforge.measurement.Metrics.empty(), List.of());
+                java.time.Instant.now(), 0, Map.of(), Map.of(),
+                com.bakr.queryforge.measurement.Metrics.empty(), List.of(),
+                "unknown");
         Mockito.when(runs.create(Mockito.eq("QF-001"), Mockito.any(), Mockito.anyString()))
                 .thenReturn(created);
 
@@ -37,17 +39,19 @@ class ExperimentRunControllerUnitTest {
         ExperimentRunService runs = Mockito.mock(ExperimentRunService.class);
         ExperimentTemplateService templates = Mockito.mock(ExperimentTemplateService.class);
         ExperimentOrchestrator orchestrator = Mockito.mock(ExperimentOrchestrator.class);
-        ExperimentRunController controller = new ExperimentRunController(runs, templates, orchestrator);
+        ExperimentRunController controller = new ExperimentRunController(runs, templates, orchestrator, new ArtifactService());
 
         ExperimentRun queued = new ExperimentRun("run-1", "QF-001", "QUEUED",
-                java.time.Instant.now(), 0, Map.of("clientRequestId", "cid"),
-                com.bakr.queryforge.measurement.Metrics.empty(), List.of());
+                java.time.Instant.now(), 0, Map.of("clientRequestId", "cid"), Map.of(),
+                com.bakr.queryforge.measurement.Metrics.empty(), List.of(),
+                "unknown");
         Mockito.when(runs.findById("run-1")).thenReturn(java.util.Optional.of(queued));
         Mockito.when(templates.findById("QF-001"))
                 .thenReturn(java.util.Optional.of(new ExperimentTemplate("QF-001", "t", "p", "h", List.of(), "1m", false, List.of(), "", List.of())));
         ExperimentRun started = new ExperimentRun("run-1", "QF-001", "RUNNING",
-                queued.startedAt(), 0, Map.of(),
-                com.bakr.queryforge.measurement.Metrics.empty(), List.of());
+                queued.startedAt(), 0, Map.of(), Map.of(),
+                com.bakr.queryforge.measurement.Metrics.empty(), List.of(),
+                "unknown");
         Mockito.when(orchestrator.run(Mockito.eq("run-1"), Mockito.any(), Mockito.any()))
                 .thenReturn(started);
 
@@ -62,11 +66,12 @@ class ExperimentRunControllerUnitTest {
         ExperimentRunService runs = Mockito.mock(ExperimentRunService.class);
         ExperimentTemplateService templates = Mockito.mock(ExperimentTemplateService.class);
         ExperimentOrchestrator orchestrator = Mockito.mock(ExperimentOrchestrator.class);
-        ExperimentRunController controller = new ExperimentRunController(runs, templates, orchestrator);
+        ExperimentRunController controller = new ExperimentRunController(runs, templates, orchestrator, new ArtifactService());
 
         ExperimentRun running = new ExperimentRun("run-1", "QF-001", "RUNNING",
-                java.time.Instant.now(), 0, Map.of(),
-                com.bakr.queryforge.measurement.Metrics.empty(), List.of());
+                java.time.Instant.now(), 0, Map.of(), Map.of(),
+                com.bakr.queryforge.measurement.Metrics.empty(), List.of(),
+                "unknown");
         Mockito.when(runs.findById("run-1")).thenReturn(java.util.Optional.of(running));
 
         org.springframework.web.server.ResponseStatusException ex = org.junit.jupiter.api.Assertions.assertThrows(

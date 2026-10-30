@@ -85,7 +85,7 @@ import { StateCardComponent } from '../state-card/state-card.component';
         </label>
       </div>
       <div class="artifacts" *ngIf="filteredArtifacts.length > 0; else noArtifacts">
-        <a class="artifact" *ngFor="let a of filteredArtifacts" [href]="'/api/artifacts/' + kindToId(a.kind, a.location)" target="_blank" rel="noopener">
+        <a class="artifact" *ngFor="let a of filteredArtifacts" [href]="artifactUrl(a)" target="_blank" rel="noopener">
           <span class="kind">{{a.kind}}</span>
           <span class="desc">{{a.description}}</span>
         </a>
@@ -190,17 +190,15 @@ export class RunDetailComponent implements OnDestroy {
     return Array.from(kinds);
   }
 
+  artifactUrl(a: { location: string }): string {
+    const name = a.location.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') ?? '';
+    return `/api/runs/${this.run!.id}/artifacts/${name}`;
+  }
+
   applyArtifactFilter() {
     if (!this.run) return;
     this.filteredArtifacts = this.artifactFilter
       ? this.run.artifacts.filter(a => a.kind === this.artifactFilter)
       : this.run.artifacts;
-  }
-
-  kindToId(kind: string, location: string): string {
-    const normalized = location.replace(/\\/g, '/');
-    if (kind === 'k6-summary') return normalized.replace('benchmark/results/', '').replace('.json', '');
-    if (kind === 'explain-plan') return normalized.replace('docs/experiments/plans/', '').replace('-explain.txt', '');
-    return normalized;
   }
 }

@@ -43,6 +43,8 @@ class ProductApiFunctionalTest {
             registry.add("spring.datasource.url", () -> System.getenv("QF_DB_URL"));
             registry.add("spring.datasource.username", () -> "queryforge");
             registry.add("spring.datasource.password", () -> "queryforge");
+            registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+            registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
         }
         // else: use test application.properties (H2)
     }

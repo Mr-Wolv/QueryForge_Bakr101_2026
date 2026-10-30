@@ -7,20 +7,20 @@
 .list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 1.5rem;
+  gap: var(--space-4, 1.5rem);
 }
 .card {
   display: block;
-  background: #fff;
-  border: 1px solid #E8E6E1;
-  border-radius: 8px;
-  padding: 2rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #E8E6E1);
+  border-radius: var(--radius-lg, 8px);
+  padding: var(--space-6, 2rem);
   text-decoration: none;
   color: inherit;
   transition: all 250ms ease;
 }
 .card:hover {
-  border-color: #111;
+  border-color: var(--text, #111);
   box-shadow: 0 12px 40px rgba(0,0,0,0.08);
   transform: translateY(-3px);
 }
@@ -37,7 +37,7 @@
 }
 .card p {
   font-size: 0.9rem;
-  color: #555;
+  color: var(--text-secondary, #555);
   line-height: 1.55;
   margin: 0 0 1.5rem;
 }
@@ -48,21 +48,21 @@
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #999;
+  color: var(--text-muted, #999);
   margin-bottom: 1rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid #F0EFEC;
+  border-bottom: 1px solid var(--border-light, #F0EFEC);
 }
 .destructive {
-  color: #B35900;
+  color: var(--warning, #9A5B00);
 }
 .launch {
   width: 100%;
   padding: 0.75rem 1rem;
-  background: #111;
-  color: #fff;
-  border: 1px solid #111;
-  border-radius: 4px;
+  background: var(--accent, #111);
+  color: var(--surface, #fff);
+  border: 1px solid var(--accent, #111);
+  border-radius: var(--radius-md, 4px);
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
@@ -70,8 +70,8 @@
   font-family: inherit;
 }
 .launch:hover:not(:disabled) {
-  background: #333;
-  border-color: #333;
+  background: var(--accent-hover, #333);
+  border-color: var(--accent-hover, #333);
 }
 .launch:disabled {
   opacity: 0.5;
@@ -80,10 +80,10 @@
 .error {
   margin-top: 1.5rem;
   padding: 1rem;
-  background: #FEF3F0;
-  color: #C44536;
+  background: var(--error-bg, #FEF3F0);
+  color: var(--error, #C44536);
   border: 1px solid #F9DED8;
-  border-radius: 4px;
+  border-radius: var(--radius-md, 4px);
   font-size: 0.875rem;
 }
 
