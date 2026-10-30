@@ -18,6 +18,18 @@ const templates = [{
 }];
 
 test.describe('first session', () => {
+  test('frontend responses include baseline security headers', async ({ request }) => {
+    const response = await request.get('/');
+
+    expect(response.status()).toBe(200);
+    expect(response.headers()).toMatchObject({
+      'x-content-type-options': 'nosniff',
+      'x-frame-options': 'DENY',
+      'referrer-policy': 'strict-origin-when-cross-origin',
+      'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+    });
+  });
+
   test.beforeEach(async ({ page }) => {
     await page.route('**/api/**', async route => {
       const request = route.request();
