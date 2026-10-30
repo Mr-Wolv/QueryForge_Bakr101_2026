@@ -1,0 +1,15 @@
+{
+	admin off
+	email {$QF_ACME_EMAIL}
+}
+
+{$QF_DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	reverse_proxy frontend:8080 {
+		header_up X-Forwarded-Port 443
+	}
+}

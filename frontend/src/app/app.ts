@@ -1,6 +1,7 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ThemeService } from './core/theme/theme.service';
+import { AuthService } from './core/auth/auth.service';
 
 @Component({
   selector: 'app-root',
@@ -11,9 +12,11 @@ import { ThemeService } from './core/theme/theme.service';
 })
 export class App implements OnInit {
   readonly theme = inject(ThemeService);
+  readonly auth = inject(AuthService);
 
   ngOnInit(): void {
     this.theme.apply(this.theme.current);
+    this.auth.load();
   }
 
   toggleTheme(): void {

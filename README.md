@@ -73,9 +73,10 @@ curl "http://<backend-host>:<assigned-port>/api/products/keyset?category=1&statu
 ```
 
 Host-based Spring Boot startup binds the API to `127.0.0.1` by default. Compose listens on the
-container interface but publishes the API only on host loopback. QueryForge is a local-development
-application with no API authentication; do not expose its API to other machines or the public
-internet.
+container interface but publishes the API only on host loopback. The default profile is a
+local-development mode without API authentication; do not expose that stack to other machines or
+the public internet. The separate production-shaped OIDC/TLS stack and its remaining deployment
+requirements are documented in [docs/operations.md](docs/operations.md).
 
 Stop the stack with `docker compose --profile app down`; add `-v` only when you intentionally
 want to delete the database volume and its contents. The same Compose commands work in PowerShell,
@@ -127,7 +128,7 @@ A lightweight perf-regression check (NFR5) is included:
 ## Documentation map
 
 - [docs/architecture.md](docs/architecture.md) — components and request paths
-- [docs/operations.md](docs/operations.md) — local operations, backup verification, and deployment limits
+- [docs/operations.md](docs/operations.md) — local operation, production-shaped deployment controls, and readiness limits
 - [docs/benchmarks.md](docs/benchmarks.md) — experiment index, benchmark matrix, reproduction commands
 - [docs/experiments/](docs/experiments/) — QF-000 (scaling), QF-001 (index), QF-002 (pagination), QF-003 (concurrency), QF-004 (index ordering), raw plans
 - [docs/conclusions.md](docs/conclusions.md) — engineering conclusions, tradeoffs, and the next justified levers

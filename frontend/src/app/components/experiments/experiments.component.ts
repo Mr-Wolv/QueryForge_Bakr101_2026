@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink, Router } from '@angular/router';
 import { switchMap } from 'rxjs/operators';
 import { ApiService, ExperimentTemplate } from '../../services/api.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { StateCardComponent } from '../state-card/state-card.component';
 import { SkeletonCardComponent } from '../skeleton-card/skeleton-card.component';
 
@@ -86,10 +87,11 @@ type ParameterField = ExperimentTemplate['parameters'][number];
             </p>
           </div>
 
-          <button class="launch" type="button" (click)="launch(t.id)" [disabled]="launching">
+          <button *ngIf="auth.canOperate()" class="launch" type="button" (click)="launch(t.id)" [disabled]="launching">
             {{launching ? 'Starting…' : 'Start experiment'}}
             <span aria-hidden="true">→</span>
           </button>
+          <p *ngIf="!auth.canOperate()" class="read-only-note">An experiment operator must start runs.</p>
         </article>
       </div>
       <app-state-card *ngIf="!loading && !loadError && templates.length === 0" mode="empty" message="No experiments are registered yet." />
@@ -100,6 +102,7 @@ type ParameterField = ExperimentTemplate['parameters'][number];
 })
 export class ExperimentsComponent {
   private api = inject(ApiService);
+  readonly auth = inject(AuthService);
   private router = inject(Router);
   private cdr = inject(ChangeDetectorRef);
   templates: ExperimentTemplate[] = [];

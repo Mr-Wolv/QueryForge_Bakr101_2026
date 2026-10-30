@@ -59,12 +59,69 @@ jobs:
         working-directory: frontend
         run: npx playwright install --with-deps chromium
 
+      - name: Start production frontend for browser tests
+        run: |
+          docker run --detach --rm \
+            --name queryforge-frontend-ci \
+            --add-host backend:127.0.0.1 \
+            --publish 127.0.0.1:4200:8080 \
+            --volume "$GITHUB_WORKSPACE/frontend/dist/frontend/browser:/usr/share/nginx/html:ro" \
+            --volume "$GITHUB_WORKSPACE/frontend/nginx.production.conf:/etc/nginx/conf.d/default.conf:ro" \
+            nginxinc/nginx-unprivileged:1.27-alpine
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4200/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs queryforge-frontend-ci
+          exit 1
+
       - name: Test first-session flow
         working-directory: frontend
         env:
           CI: true
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:4200
         run: npm run e2e:ci
+
+      - name: Stop production frontend test server
+        if: always()
+        run: docker stop queryforge-frontend-ci || true
+
+  production-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate production Compose configuration
+        run: |
+          secrets_dir="$(mktemp -d)"
+          trap 'rm -rf "$secrets_dir"' EXIT
+          for name in postgres-admin app-db monitor-db oidc-client smtp; do
+            : > "$secrets_dir/$name"
+          done
+          export QF_DOMAIN=queryforge.example.test
+          export QF_ACME_EMAIL=ops@example.test
+          export QF_OIDC_ISSUER_URI=https://id.example.test
+          export QF_OIDC_CLIENT_ID=queryforge
+          export QF_OIDC_CLIENT_SECRET_FILE="$secrets_dir/oidc-client"
+          export QF_POSTGRES_ADMIN_PASSWORD_FILE="$secrets_dir/postgres-admin"
+          export QF_APP_DB_PASSWORD_FILE="$secrets_dir/app-db"
+          export QF_MONITOR_DB_PASSWORD_FILE="$secrets_dir/monitor-db"
+          export QF_SMTP_HOST=smtp.example.test:587
+          export QF_SMTP_FROM=queryforge@example.test
+          export QF_SMTP_USERNAME=queryforge@example.test
+          export QF_SMTP_PASSWORD_FILE="$secrets_dir/smtp"
+          export QF_ALERT_EMAIL=ops@example.test
+          docker compose -f docker-compose.production.yml config --quiet
+
+      - name: Validate Prometheus rules
+        run: |
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE/monitoring:/etc/prometheus:ro" \
+            --entrypoint promtool \
+            prom/prometheus:v3.5.0 \
+            check config /etc/prometheus/prometheus.yml
 
   dependency-review:
     if: github.event_name == 'pull_request'
