@@ -69,11 +69,11 @@
     }
     .state.succeeded {
       color: var(--success, #2D5A4A);
-      background: #E8F5EE;
+      background: var(--success-bg, #E6F4ED);
     }
     .state.failed {
       color: var(--error, #C44536);
-      background: #FEF3F0;
+      background: var(--error-bg, #FDF0EE);
     }
     .p95, .rps {
       font-variant-numeric: tabular-nums;

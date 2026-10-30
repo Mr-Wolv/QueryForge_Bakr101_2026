@@ -31,7 +31,7 @@
     }
     .unavailable {
       background: var(--bg, #fafafa);
-      border-color: #F9DED8;
+      border-color: var(--error, #C44536);
     }
     .unavailable .icon {
       color: var(--error, #C44536);

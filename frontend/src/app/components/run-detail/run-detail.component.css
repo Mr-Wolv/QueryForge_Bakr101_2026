@@ -204,20 +204,20 @@
       border: 1px solid var(--border, #e5e5e5);
     }
     .sse-badge.running {
-      background: #fff8e1;
-      color: #b71c1c;
-      border-color: #ffcc80;
+      background: var(--warning-bg, #FFF5E6);
+      color: var(--error, #B33A2E);
+      border-color: var(--warning, #9A5B00);
       animation: pulse 1.5s infinite;
     }
     .sse-badge.succeeded {
-      background: #e8f5e9;
-      color: #1b5e20;
-      border-color: #a5d6a7;
+      background: var(--success-bg, #E6F4ED);
+      color: var(--success, #1A6B4A);
+      border-color: var(--success, #1A6B4A);
     }
     .sse-badge.failed {
-      background: #ffebee;
-      color: #b71c1c;
-      border-color: #ef9a9a;
+      background: var(--error-bg, #FDF0EE);
+      color: var(--error, #B33A2E);
+      border-color: var(--error, #B33A2E);
     }
     @keyframes pulse {
       0%, 100% { opacity: 1; }

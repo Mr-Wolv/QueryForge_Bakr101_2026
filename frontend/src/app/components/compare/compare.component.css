@@ -71,12 +71,12 @@ h1 {
     .badge.pass {
       color: var(--success, #2D5A4A);
       border-color: var(--success, #2D5A4A);
-      background: #E8F5EE;
+      background: var(--success-bg, #E6F4ED);
     }
     .badge.fail {
       color: var(--error, #C44536);
       border-color: var(--error, #C44536);
-      background: #FEF3F0;
+      background: var(--error-bg, #FDF0EE);
     }
     .score {
       font-size: 14px;

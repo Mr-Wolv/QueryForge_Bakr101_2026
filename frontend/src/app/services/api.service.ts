@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
-import { tap, shareReplay } from 'rxjs/operators';
+import { tap, shareReplay, filter, switchMap } from 'rxjs/operators';
 
 export interface ExperimentTemplate {
   id: string;
@@ -90,6 +90,8 @@ export class ApiService {
   private readonly cache = new Map<string, { expiry: number; value: any }>();
   private readonly ttlMs = 30_000;
 
+  private readonly inflight = new Map<string, Observable<any>>();
+
   private cached<T>(key: string, request: () => Observable<T>): Observable<T> {
     const hit = this.cache.get(key);
     if (hit && hit.expiry > Date.now()) {
@@ -99,6 +101,21 @@ export class ApiService {
       tap(v => this.cache.set(key, { expiry: Date.now() + this.ttlMs, value: v })),
       shareReplay(1)
     );
+  }
+
+  private dedup<T>(key: string, request: () => Observable<T>): Observable<T> {
+    const existing = this.inflight.get(key);
+    if (existing) {
+      return existing as Observable<T>;
+    }
+    const obs = request().pipe(
+      tap({
+        finalize: () => this.inflight.delete(key)
+      }),
+      shareReplay(1)
+    );
+    this.inflight.set(key, obs);
+    return obs;
   }
 
   getExperiments(): Observable<ExperimentTemplate[]> {
@@ -120,7 +137,9 @@ export class ApiService {
   }
 
   getRun(id: string): Observable<ExperimentRun> {
-    return this.http.get<ExperimentRun>(`${this.base}/runs/${id}`);
+    return this.dedup<ExperimentRun>(`run:${id}`, () =>
+      this.http.get<ExperimentRun>(`${this.base}/runs/${id}`)
+    );
   }
 
   getRunArtifacts(id: string): Observable<any[]> {

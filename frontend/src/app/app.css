@@ -9,8 +9,11 @@
   z-index: 200;
   transition: top 150ms ease;
 }
-.skip-link:focus {
+.skip-link:focus,
+.skip-link:focus-visible {
   top: 0;
+  outline: 2px solid var(--color-text-inverse);
+  outline-offset: 2px;
 }
 
 .topbar {

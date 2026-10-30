@@ -24,7 +24,7 @@
 }
 .card:hover {
   box-shadow: var(--shadow-md);
-  border-color: #ddd;
+  border-color: var(--border-strong, #D5D3CC);
 }
 .card h2 {
   font-size: 13px;
