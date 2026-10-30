@@ -1,44 +1,104 @@
-import { Component, input, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, input, OnChanges, SimpleChanges, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { BaseChartDirective, provideCharts, withDefaultRegisterables } from 'ng2-charts';
 import { ChartDataPoint } from '../../services/api.service';
 
 @Component({
   selector: 'app-latency-chart',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, BaseChartDirective],
+  providers: [provideCharts(withDefaultRegisterables())],
   template: `
-    <div class="chart" *ngIf="data().length > 0">
-      <div class="bar-group" *ngFor="let d of data(); let i = index">
-        <div class="bar-wrap">
-          <div class="bar" [style.height.%]="barHeight(d.value)" [style.background]="barColor(i)"></div>
-        </div>
-        <span class="label">{{d.label}}</span>
-        <span class="value">{{d.value | number:'1.0-0'}}</span>
-      </div>
+    <div class="chart" *ngIf="chartData.datasets[0].data.length > 0; else empty">
+      <canvas baseChart
+        [type]="chartType"
+        [data]="chartData"
+        [options]="chartOptions">
+      </canvas>
     </div>
+    <ng-template #empty>
+      <div class="empty">No data available</div>
+    </ng-template>
   `,
-  styleUrls: ['./latency-chart.component.css']
+  styles: [`
+    .chart {
+      padding: var(--space-4) 0;
+      max-height: 280px;
+    }
+    .empty {
+      padding: var(--space-6) 0;
+      text-align: center;
+      color: var(--color-text-muted);
+      font-size: var(--text-sm);
+    }
+  `]
 })
-export class LatencyChartComponent implements OnChanges {
+export class LatencyChartComponent implements OnInit, OnChanges {
   data = input.required<ChartDataPoint[]>();
+  readonly chartType = 'bar' as const;
 
-  ngOnChanges(changes: SimpleChanges) {
-    // reactive via binding; nothing extra needed
+  chartData = {
+    labels: [] as string[],
+    datasets: [{
+      data: [] as number[],
+      backgroundColor: '#1a1a1a',
+      hoverBackgroundColor: '#1a1a1a',
+      borderRadius: 4,
+      borderSkipped: false,
+      barPercentage: 0.7,
+      categoryPercentage: 0.8
+    }]
+  };
+
+  chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#ffffff',
+        titleColor: '#111111',
+        bodyColor: '#555555',
+        borderColor: '#e5e5e5',
+        borderWidth: 1,
+        padding: 10,
+        cornerRadius: 6
+      }
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: {
+          color: '#999999',
+          font: { size: 11 }
+        }
+      },
+      y: {
+        grid: {
+          color: '#f0f0f0'
+        },
+        ticks: {
+          color: '#999999',
+          font: { size: 11 }
+        },
+        beginAtZero: true
+      }
+    }
+  };
+
+  ngOnInit(): void {
+    this.updateData();
   }
 
-  max(): number {
-    const vals = this.data().map(d => d.value);
-    return vals.length ? Math.max(...vals) : 1;
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['data'] && !changes['data'].isFirstChange()) {
+      this.updateData();
+    }
   }
 
-  barHeight(value: number): number {
-    const m = this.max();
-    if (m <= 0) return 0;
-    return Math.max((value / m) * 100, 2);
-  }
-
-  barColor(index: number): string {
-    const colors = ['#111', '#333', '#555', '#777', '#999'];
-    return colors[index % colors.length];
+  private updateData() {
+    const points = this.data();
+    this.chartData.labels = points.map(p => p.label);
+    this.chartData.datasets[0].data = points.map(p => p.value);
   }
 }

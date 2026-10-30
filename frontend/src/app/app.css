@@ -1,11 +1,25 @@
 /* App Shell */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--color-text);
+  color: var(--color-text-inverse);
+  padding: var(--space-2) var(--space-4);
+  z-index: 200;
+  transition: top 150ms ease;
+}
+.skip-link:focus {
+  top: 0;
+}
+
 .topbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: var(--space-5) var(--space-7);
   background: rgba(255, 255, 255, 0.85);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--color-border);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -13,11 +27,11 @@
 }
 
 .brand {
-  font-size: 1.15rem;
+  font-size: var(--text-lg);
   font-weight: 500;
   letter-spacing: -0.03em;
   text-decoration: none;
-  color: var(--text);
+  color: var(--color-text-primary);
   transition: opacity var(--transition-fast);
   display: inline-flex;
   align-items: center;
@@ -30,7 +44,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--text);
+  background: var(--color-text-primary);
   opacity: 0.85;
 }
 
@@ -47,8 +61,8 @@ nav a {
   padding: var(--space-2) var(--space-3);
   margin-left: var(--space-1);
   text-decoration: none;
-  color: var(--text-secondary);
-  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
   font-weight: 400;
   border-radius: var(--radius-md);
   transition: all var(--transition-fast);
@@ -56,12 +70,12 @@ nav a {
 }
 
 nav a:hover {
-  color: var(--text);
-  background: var(--accent-subtle);
+  color: var(--color-text-primary);
+  background: var(--color-accent-subtle);
 }
 
 nav a.active {
-  color: var(--text);
+  color: var(--color-text-primary);
   font-weight: 500;
 }
 
@@ -72,7 +86,7 @@ nav a.active::after {
   left: var(--space-3);
   right: var(--space-3);
   height: 2px;
-  background: var(--text);
+  background: var(--color-text-primary);
   border-radius: 1px;
   opacity: 0.7;
 }
@@ -88,4 +102,19 @@ nav a.active::after {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 767px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: var(--space-4);
+  }
+  nav {
+    width: 100%;
+    justify-content: center;
+  }
+  .main {
+    padding: var(--space-5) var(--space-4);
+  }
 }
