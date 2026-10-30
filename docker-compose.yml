@@ -1,18 +1,23 @@
+# Local development only. Set QF_DB_PASSWORD to a strong secret before sharing this stack.
 services:
   db:
     image: postgres:17
     environment:
       POSTGRES_DB: queryforge
       POSTGRES_USER: queryforge
-      POSTGRES_PASSWORD: queryforge
+      POSTGRES_PASSWORD: ${QF_DB_PASSWORD:-queryforge}
     command: >
       postgres -c shared_preload_libraries=pg_stat_statements
                -c pg_stat_statements.track=all
     ports:
-      - "5433:5432"   # host 5433 to avoid colliding with a local PostgreSQL on 5432
+      - "127.0.0.1:${QF_DB_PORT:-}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - ./db/init/01-extensions.sql:/docker-entrypoint-initdb.d/01-extensions.sql:ro
+      - ./db/migrations/V1__create_products.sql:/docker-entrypoint-initdb.d/02-schema.sql:ro
+      - ./db/migrations:/workspace/db/migrations:ro
+      - ./benchmark/seed:/seed:ro
+      - ./scripts:/workspace/scripts:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U queryforge -d queryforge"]
       interval: 5s
@@ -28,11 +33,12 @@ services:
     environment:
       DB_URL: jdbc:postgresql://db:5432/queryforge
       DB_USER: queryforge
-      DB_PASSWORD: queryforge
+      DB_PASSWORD: ${QF_DB_PASSWORD:-queryforge}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:${QF_API_PORT:-}:8080"
     volumes:
-      - ./benchmark/results:/app/benchmark/results:ro
+      - ./benchmark/results:/app/benchmark/results
+      - ./benchmark/runs:/app/benchmark/runs
       - ./docs/experiments:/app/docs/experiments:ro
     depends_on:
       db:
@@ -45,9 +51,25 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
     ports:
-      - "80:80"
+      - "127.0.0.1:${QF_WEB_PORT:-}:80"
     depends_on:
       - backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  data-generator:
+    profiles: ["tools"]
+    image: python:3.13-slim
+    working_dir: /workspace
+    entrypoint: ["python", "scripts/generate-data.py"]
+    command: ["10000", "--csv", "benchmark/seed/products_seed42.csv"]
+    volumes:
+      - ./scripts:/workspace/scripts:ro
+      - ./benchmark/seed:/workspace/benchmark/seed
 
 volumes:
   pgdata:

@@ -11,6 +11,7 @@ import csv
 import random
 import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 SEED = 42
 N_CATEGORIES = 5
@@ -46,14 +47,16 @@ def main() -> int:
         print("rows must be >= 1", file=sys.stderr)
         return 2
 
-    with open(args.csv_path, "w", newline="") as f:
+    output_path = Path(args.csv_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["id", "sku", "name", "category_id", "price", "stock_quantity",
                     "status", "created_at", "updated_at"])
         for i in range(1, args.rows + 1):
             w.writerow(gen_row(i))
 
-    print(f"Generated {args.rows} rows (seed={SEED}) -> {args.csv_path}")
+    print(f"Generated {args.rows} rows (seed={SEED}) -> {output_path}")
     return 0
 
 

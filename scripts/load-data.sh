@@ -18,6 +18,9 @@ echo ">> truncating products"
 echo ">> COPY load (single transaction)"
 "${PSQL[@]}" -c "\copy products (id, sku, name, category_id, price, stock_quantity, status, created_at, updated_at) FROM STDIN WITH (FORMAT csv, HEADER true)" < "${CSV}"
 
+echo ">> align id sequence"
+"${PSQL[@]}" -c "SELECT setval(pg_get_serial_sequence('products', 'id'), COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM products;"
+
 echo ">> VACUUM + ANALYZE"
 "${PSQL[@]}" -c "VACUUM (ANALYZE) products;"
 

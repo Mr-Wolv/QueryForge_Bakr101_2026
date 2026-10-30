@@ -19,12 +19,14 @@ export function filterParams() {
   return `category=${category}&status=ACTIVE&minPrice=100&maxPrice=500`;
 }
 
-// Writes human summary to stdout and full metrics JSON to benchmark/results/<fileBase>.json
-// NOTE: run k6 from the repository root (paths are resolved from the CWD):
+// Writes human summary to stdout and full metrics JSON to SUMMARY_PATH when the
+// orchestrator provides one, otherwise benchmark/results/<fileBase>.json.
+// NOTE: run k6 from the repository root when invoking it manually:
 //   tools/k6/k6.exe run -e OUT=foo benchmark/k6/search.js
 export function handleSummaryWith(data, fileBase) {
   const out = {};
   out['stdout'] = textSummary(data, { indent: ' ', enableColors: true });
-  out[`benchmark/results/${fileBase}.json`] = JSON.stringify(data, null, 2);
+  const summaryPath = __ENV.SUMMARY_PATH || `benchmark/results/${fileBase}.json`;
+  out[summaryPath] = JSON.stringify(data, null, 2);
   return out;
 }

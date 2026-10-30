@@ -1,0 +1,14 @@
+.git
+.mvn
+target
+tools
+**/node_modules
+**/dist
+**/.angular
+**/test-results
+**/playwright-report
+benchmark/seed
+benchmark/runs
+.env
+.env.*
+*.log
