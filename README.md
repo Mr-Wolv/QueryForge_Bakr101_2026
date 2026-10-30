@@ -72,6 +72,11 @@ curl "http://<backend-host>:<assigned-port>/api/products?category=1&status=ACTIV
 curl "http://<backend-host>:<assigned-port>/api/products/keyset?category=1&status=ACTIVE&size=50"
 ```
 
+Host-based Spring Boot startup binds the API to `127.0.0.1` by default. Compose listens on the
+container interface but publishes the API only on host loopback. QueryForge is a local-development
+application with no API authentication; do not expose its API to other machines or the public
+internet.
+
 Stop the stack with `docker compose --profile app down`; add `-v` only when you intentionally
 want to delete the database volume and its contents. The same Compose commands work in PowerShell,
 Command Prompt, macOS Terminal, and Linux shells. Host ports are chosen dynamically by default;
@@ -139,7 +144,7 @@ A lightweight Angular 22 evidence browser lets you inspect experiments, run hist
 Screenshots are generated locally (and are not committed); run `npm run e2e:screenshots` from
 `frontend` after starting the backend and preparing run history.
 
-The production build currently emits a **346.34 kB initial bundle** (estimated **95.18 kB
+The production build currently emits a **346.49 kB initial bundle** (estimated **95.20 kB
 transfer**) with charts and page features split into lazy route chunks. CI enforces an initial
 bundle warning at 400 kB and fails above 500 kB; these bundle limits complement, but do not replace,
 measured API and PostgreSQL latency checks.
