@@ -2,8 +2,6 @@ package com.bakr.queryforge.experiment;
 
 import com.bakr.queryforge.api.dto.ExperimentRunRequest;
 import com.bakr.queryforge.artifact.ArtifactService;
-import com.bakr.queryforge.artifact.RunArtifact;
-import com.bakr.queryforge.experiment.ExperimentTemplate;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -12,12 +10,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.validation.Valid;
 import java.nio.file.Path;
-import java.util.List;
+import java.time.Instant;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Phase 2 run orchestration endpoints.
@@ -27,52 +25,59 @@ import java.util.Map;
 @RequestMapping("/api/runs")
 public class ExperimentRunController {
 
-    private final ExperimentRunService runs;
-    private final ExperimentTemplateService templates;
-    private final ExperimentOrchestrator orchestrator;
-    private final ArtifactService artifactService;
+    private static final Set<String> TERMINAL_STATES = Set.of(
+            "SUCCEEDED", "FAILED", "CANCELLED", "TIMED_OUT");
 
-    public ExperimentRunController(ExperimentRunService runs, ExperimentTemplateService templates, ExperimentOrchestrator orchestrator, ArtifactService artifactService) {
+    private final ExperimentRunService runs;
+    private final ArtifactService artifactService;
+    private final RunEventBus events;
+
+    public ExperimentRunController(ExperimentRunService runs,
+                                   ArtifactService artifactService,
+                                   RunEventBus events) {
         this.runs = runs;
-        this.templates = templates;
-        this.orchestrator = orchestrator;
         this.artifactService = artifactService;
+        this.events = events;
     }
 
     @PostMapping
-    public ResponseEntity<ExperimentRun> create(@Valid @RequestBody ExperimentRunRequest request) {
-        ExperimentRun created = runs.create(request.templateId(), request.parameters(), request.clientRequestId());
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(created);
+    public ResponseEntity<ExperimentRun> create(
+            @Valid @RequestBody ExperimentRunRequest request,
+            @RequestHeader(value = "X-Client-Request-Id", required = false) String requestIdHeader) {
+        String clientRequestId = request.clientRequestId() != null && !request.clientRequestId().isBlank()
+                ? request.clientRequestId()
+                : requestIdHeader;
+        ExperimentRun created = runs.create(request.templateId(), request.parameters(), clientRequestId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PostMapping("/{id}/start")
     public ResponseEntity<ExperimentRun> start(@PathVariable String id) {
         ExperimentRun run = runs.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "run not found"));
+                .orElseThrow(() -> new com.bakr.queryforge.service.NotFoundException("run not found: " + id));
         if (!"QUEUED".equals(run.state())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "run is not queued");
+            throw new RunConflictException("run is not queued: " + run.state());
         }
-        try {
-            ExperimentTemplate template = templates.findById(run.templateId())
-                    .orElseThrow(() -> new IllegalStateException("template not found: " + run.templateId()));
-            ExperimentRun started = orchestrator.run(id, template, run.parameters());
-            return ResponseEntity.ok(started);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "interrupted");
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
-        }
+        ExperimentRun started = runs.start(id);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(started);
     }
 
     @GetMapping("/{id}/events")
     public SseEmitter events(@PathVariable String id) {
-        SseEmitter emitter = new SseEmitter(0L);
-        ExperimentRun run = runs.findById(id).orElse(null);
-        if (run != null) {
-            try {
-                emitter.send(SseEmitter.event().name("state").data(Map.of("state", run.state())));
-            } catch (Exception ignored) {}
+        ExperimentRun run = runs.findById(id)
+                .orElseThrow(() -> new com.bakr.queryforge.service.NotFoundException("run not found: " + id));
+
+        SseEmitter emitter = events.subscribe(id);
+        try {
+            emitter.send(SseEmitter.event().name("state").data(Map.of(
+                    "state", run.state(),
+                    "at", Instant.now().toString())));
+        } catch (Exception ignored) {
+            emitter.complete();
+            return emitter;
+        }
+        if (TERMINAL_STATES.contains(run.state())) {
+            emitter.complete();
         }
         return emitter;
     }
@@ -80,28 +85,26 @@ public class ExperimentRunController {
     @PostMapping("/{id}/cancel")
     public ResponseEntity<Map<String, Object>> cancel(@PathVariable String id) {
         ExperimentRun run = runs.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "run not found"));
-        String terminalStates = "SUCCEEDED|FAILED|CANCELLED|TIMED_OUT";
-        if (terminalStates.contains(run.state())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "run already in terminal state: " + run.state());
+                .orElseThrow(() -> new com.bakr.queryforge.service.NotFoundException("run not found: " + id));
+        if (TERMINAL_STATES.contains(run.state())) {
+            throw new RunConflictException("run already in terminal state: " + run.state());
         }
-        boolean cancelled = orchestrator.cancel(id);
+        boolean cancelled = runs.cancel(id);
         if (!cancelled) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "run not found or not cancellable");
+            throw new RunConflictException("run is not cancellable: " + run.state());
         }
-        return ResponseEntity.ok(Map.of(
-                "runId", id,
-                "state", "CANCELLED",
-                "message", "run cancelled successfully"
+        String state = runs.findById(id).map(ExperimentRun::state).orElse("CANCELLING");
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(Map.of(
+                "id", id,
+                "state", state
         ));
     }
 
     @GetMapping("/{id}/artifacts/{artifactId}")
     public ResponseEntity<Resource> artifact(@PathVariable String id, @PathVariable String artifactId) {
-        runs.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "run not found"));
-        Path path = artifactService.resolve(artifactId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "artifact not found"));
+        runs.findById(id).orElseThrow(() -> new com.bakr.queryforge.service.NotFoundException("run not found: " + id));
+        Path path = artifactService.resolveForRun(id, artifactId)
+                .orElseThrow(() -> new com.bakr.queryforge.service.NotFoundException("artifact not found: " + artifactId));
         Resource resource = new org.springframework.core.io.FileSystemResource(path);
         String contentType = artifactService.guessContentType(path);
         return ResponseEntity.ok()

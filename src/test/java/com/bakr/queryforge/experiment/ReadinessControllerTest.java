@@ -1,9 +1,13 @@
 package com.bakr.queryforge.experiment;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
 import javax.sql.DataSource;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Map;
@@ -11,6 +15,18 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ReadinessControllerTest {
+
+    @Test
+    void detectsK6InstalledOnPath(@TempDir Path directory) throws IOException {
+        boolean windows = System.getProperty("os.name").toLowerCase().contains("win");
+        Path binary = Files.createFile(directory.resolve(windows ? "k6.exe" : "k6"));
+        if (!windows) binary.toFile().setExecutable(true);
+
+        assertThat(ReadinessController.isExecutableAvailable("k6", directory.toString(), ".EXE",
+                directory.toString())).isTrue();
+        assertThat(ReadinessController.isExecutableAvailable("missing-k6", directory.toString(), ".EXE",
+                directory.toString())).isFalse();
+    }
 
     @Test
     void readinessReportsUpWhenDatabaseIsReachable() throws Exception {

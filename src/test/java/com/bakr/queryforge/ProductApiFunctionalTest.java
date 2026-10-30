@@ -204,6 +204,16 @@ class ProductApiFunctionalTest {
     }
 
     @Test
+    void unmappedPathReturnsNotFoundProblemDetail() throws Exception {
+        var resp = rest.getForEntity(url("/api/definitely-not-a-route"), String.class);
+        assertThat(resp.getStatusCode().value()).isEqualTo(404);
+        JsonNode body = json.readTree(resp.getBody());
+        assertThat(body.path("status").asInt()).isEqualTo(404);
+        assertThat(body.path("type").asText()).endsWith("not-found");
+        assertThat(body.path("instance").asText()).isEqualTo("/api/definitely-not-a-route");
+    }
+
+    @Test
     void categoriesListed() {
         var resp = rest.getForEntity(url("/api/categories"), JsonNode.class);
         assertThat(resp.getStatusCode().value()).isEqualTo(200);

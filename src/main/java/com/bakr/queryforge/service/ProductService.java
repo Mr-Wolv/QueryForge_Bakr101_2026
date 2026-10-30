@@ -37,8 +37,7 @@ public class ProductService {
         Specification<Product> spec = ProductSpecs.search(p.categoryId(), p.status(), p.minPrice(), p.maxPrice());
         Page<Product> page = products.findAll(spec, pageable);
         List<ProductRow> content = page.getContent().stream().map(ProductService::toRow).toList();
-        boolean hasNext = (long) (p.page() + 1) * p.size() < page.getTotalElements();
-        return new PageResponse<>(content, p.page(), p.size(), page.getTotalElements(), hasNext);
+        return PageResponse.of(content, p.page(), p.size(), page.getTotalElements());
     }
 
     /**

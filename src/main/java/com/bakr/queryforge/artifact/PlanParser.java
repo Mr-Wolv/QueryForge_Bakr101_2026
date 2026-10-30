@@ -166,7 +166,8 @@ public class PlanParser {
         // Filter / Index Cond / Hash Cond / Join Filter / Subplans
         String[] detailKeys = {"Filter", "Index Cond", "Hash Cond", "Join Filter", "Rows Removed by Filter",
                 "Rows Removed by Index Recheck", "Heap Fetches", "Single Copy", "Parent Relationship",
-                "Parallel"};
+                "Parallel", "Recheck Cond", "One-Time Filter", "Workers Planned", "Workers Launched",
+                "Sort Key", "Presorted Key", "Actual Total Time"};
         for (String key : detailKeys) {
             if (trimmed.contains(key + ":") || trimmed.contains(key + "=")) {
                 int idx = trimmed.indexOf(key);
@@ -218,7 +219,7 @@ public class PlanParser {
         if (parentType == null) return false;
         return switch (parentType.split("\\s+")[0]) {
             case "Hash", "Merge", "Nested", "Append", "Result" -> true;
-            default -> lower.matches(".*\\b(filter|cond|workers|batches|conflicts|wait|single|parent)\\b.*:.*");
+            default -> lower.matches(".*\\b(filter|cond|workers|batches|conflicts|wait|single|parent|sort|presorted|key|recheck|planned|launched|actual)\\b.*:.*");
         };
     }
 

@@ -97,6 +97,22 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <!--
+                          Docker Engine 25.0 raised its minimum API version to 1.44 and
+                          Engine 29 answers older versions with HTTP 400, while docker-java
+                          (used by Testcontainers) still defaults to 1.32. Without this
+                          PostgresIntegrationSmokeTest skips with "Could not find a valid
+                          Docker environment" on current Docker Desktop.
+                        -->
+                        <api.version>1.44</api.version>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

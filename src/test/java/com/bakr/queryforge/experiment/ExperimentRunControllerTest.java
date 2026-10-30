@@ -5,78 +5,94 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ExperimentRunControllerUnitTest {
 
-    @Test
-    void createReturnsAccepted() {
-        ExperimentRunService runs = Mockito.mock(ExperimentRunService.class);
-        ExperimentTemplateService templates = Mockito.mock(ExperimentTemplateService.class);
-        ExperimentOrchestrator orchestrator = Mockito.mock(ExperimentOrchestrator.class);
-        ExperimentRunController controller = new ExperimentRunController(runs, templates, orchestrator, new ArtifactService());
+    private final ExperimentRunService runs = Mockito.mock(ExperimentRunService.class);
+    private final ArtifactService artifactService = new ArtifactService();
+    private final ExperimentRunController controller =
+            new ExperimentRunController(runs, artifactService, new RunEventBus());
 
-        ExperimentRun created = new ExperimentRun("run-1", "QF-001", "QUEUED",
-                java.time.Instant.now(), 0, Map.of(), Map.of(),
-                com.bakr.queryforge.measurement.Metrics.empty(), List.of(),
-                "unknown");
-        Mockito.when(runs.create(Mockito.eq("QF-001"), Mockito.any(), Mockito.anyString()))
+    @Test
+    void createReturnsCreated() {
+        ExperimentRun created = run("run-1", "QUEUED");
+        Mockito.when(runs.create(Mockito.eq("QF-001"), Mockito.any(), Mockito.eq("cid")))
                 .thenReturn(created);
 
-        ResponseEntity<ExperimentRun> resp = controller.create(new com.bakr.queryforge.api.dto.ExperimentRunRequest("QF-001", Map.of("RATE", "10"), "cid"));
+        ResponseEntity<ExperimentRun> resp = controller.create(
+                new com.bakr.queryforge.api.dto.ExperimentRunRequest(
+                        "QF-001", Map.of("RATE", "10"), "cid"), null);
 
-        assertThat(resp.getStatusCodeValue()).isEqualTo(202);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(resp.getBody()).isEqualTo(created);
     }
 
     @Test
-    void startReturnsOkWhenQueued() throws Exception {
-        ExperimentRunService runs = Mockito.mock(ExperimentRunService.class);
-        ExperimentTemplateService templates = Mockito.mock(ExperimentTemplateService.class);
-        ExperimentOrchestrator orchestrator = Mockito.mock(ExperimentOrchestrator.class);
-        ExperimentRunController controller = new ExperimentRunController(runs, templates, orchestrator, new ArtifactService());
+    void createUsesClientRequestIdHeaderWhenBodyOmitsIt() {
+        ExperimentRun created = run("run-1", "QUEUED");
+        Mockito.when(runs.create(Mockito.eq("QF-001"), Mockito.any(), Mockito.eq("header-id")))
+                .thenReturn(created);
 
-        ExperimentRun queued = new ExperimentRun("run-1", "QF-001", "QUEUED",
-                java.time.Instant.now(), 0, Map.of("clientRequestId", "cid"), Map.of(),
-                com.bakr.queryforge.measurement.Metrics.empty(), List.of(),
-                "unknown");
-        Mockito.when(runs.findById("run-1")).thenReturn(java.util.Optional.of(queued));
-        Mockito.when(templates.findById("QF-001"))
-                .thenReturn(java.util.Optional.of(new ExperimentTemplate("QF-001", "t", "p", "h", List.of(), "1m", false, List.of(), "", List.of())));
-        ExperimentRun started = new ExperimentRun("run-1", "QF-001", "RUNNING",
-                queued.startedAt(), 0, Map.of(), Map.of(),
-                com.bakr.queryforge.measurement.Metrics.empty(), List.of(),
-                "unknown");
-        Mockito.when(orchestrator.run(Mockito.eq("run-1"), Mockito.any(), Mockito.any()))
-                .thenReturn(started);
+        controller.create(new com.bakr.queryforge.api.dto.ExperimentRunRequest(
+                "QF-001", Map.of("RATE", "10"), null), "header-id");
+
+        Mockito.verify(runs).create("QF-001", Map.of("RATE", "10"), "header-id");
+    }
+
+    @Test
+    void startReturnsAcceptedWhenQueued() {
+        ExperimentRun queued = run("run-1", "QUEUED");
+        ExperimentRun started = run("run-1", "RUNNING");
+        Mockito.when(runs.findById("run-1")).thenReturn(Optional.of(queued));
+        Mockito.when(runs.start("run-1")).thenReturn(started);
 
         ResponseEntity<ExperimentRun> resp = controller.start("run-1");
 
-        assertThat(resp.getStatusCodeValue()).isEqualTo(200);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         assertThat(resp.getBody().state()).isEqualTo("RUNNING");
     }
 
     @Test
     void startReturnsConflictWhenNotQueued() {
-        ExperimentRunService runs = Mockito.mock(ExperimentRunService.class);
-        ExperimentTemplateService templates = Mockito.mock(ExperimentTemplateService.class);
-        ExperimentOrchestrator orchestrator = Mockito.mock(ExperimentOrchestrator.class);
-        ExperimentRunController controller = new ExperimentRunController(runs, templates, orchestrator, new ArtifactService());
+        Mockito.when(runs.findById("run-1")).thenReturn(Optional.of(run("run-1", "RUNNING")));
 
-        ExperimentRun running = new ExperimentRun("run-1", "QF-001", "RUNNING",
-                java.time.Instant.now(), 0, Map.of(), Map.of(),
-                com.bakr.queryforge.measurement.Metrics.empty(), List.of(),
-                "unknown");
-        Mockito.when(runs.findById("run-1")).thenReturn(java.util.Optional.of(running));
+        assertThatThrownBy(() -> controller.start("run-1"))
+                .isInstanceOf(RunConflictException.class);
+    }
 
-        org.springframework.web.server.ResponseStatusException ex = org.junit.jupiter.api.Assertions.assertThrows(
-                org.springframework.web.server.ResponseStatusException.class,
-                () -> controller.start("run-1"));
-        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    @Test
+    void cancelReturnsAcceptedWithCancellingState() {
+        ExperimentRun running = run("run-1", "RUNNING");
+        ExperimentRun cancelling = run("run-1", "CANCELLING");
+        Mockito.when(runs.findById("run-1"))
+                .thenReturn(Optional.of(running), Optional.of(cancelling));
+        Mockito.when(runs.cancel("run-1")).thenReturn(true);
+
+        ResponseEntity<Map<String, Object>> resp = controller.cancel("run-1");
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(resp.getBody()).containsEntry("state", "CANCELLING");
+    }
+
+    @Test
+    void cancelReturnsConflictWhenTerminal() {
+        Mockito.when(runs.findById("run-1")).thenReturn(Optional.of(run("run-1", "SUCCEEDED")));
+
+        assertThatThrownBy(() -> controller.cancel("run-1"))
+                .isInstanceOf(RunConflictException.class);
+    }
+
+    private static ExperimentRun run(String id, String state) {
+        return new ExperimentRun(id, "QF-001", state, Instant.now(), 0,
+                Map.of(), Map.of(), com.bakr.queryforge.measurement.Metrics.empty(),
+                List.of(), "unknown");
     }
 }

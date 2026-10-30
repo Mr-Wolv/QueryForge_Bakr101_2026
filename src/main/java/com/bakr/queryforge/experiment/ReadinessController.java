@@ -5,18 +5,24 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/lab")
 public class ReadinessController {
 
+    private static final Logger LOG = LoggerFactory.getLogger(ReadinessController.class);
     private final DataSource dataSource;
     private final JdbcTemplate jdbc;
 
@@ -47,7 +53,7 @@ public class ReadinessController {
         ));
         body.put("k6", Map.of(
                 "status", k6Available() ? "UP" : "UNKNOWN",
-                "path", System.getenv("K6_PATH") == null ? "tools/k6/k6.exe" : System.getenv("K6_PATH")
+                "path", k6Path()
         ));
         body.put("fingerprint", Map.of(
                 "appCommit", envOrDefault("GIT_COMMIT", "unknown"),
@@ -60,11 +66,83 @@ public class ReadinessController {
     }
 
     private static boolean k6Available() {
-        String path = System.getenv("K6_PATH");
-        if (path == null) path = "tools/k6/k6.exe";
-        Path p = Path.of(path);
-        if (!p.isAbsolute()) p = Path.of(System.getProperty("user.dir")).resolve(path);
-        return java.nio.file.Files.isRegularFile(p) || "k6".equals(path);
+        String configured = configuredK6Path();
+        if (configured != null) {
+            return isExecutableAvailable(configured, System.getenv("PATH"), System.getenv("PATHEXT"),
+                    System.getProperty("user.dir"));
+        }
+
+        Path bundled = bundledK6Path();
+        if (java.nio.file.Files.isRegularFile(bundled)) return true;
+        return isExecutableAvailable("k6", System.getenv("PATH"), System.getenv("PATHEXT"),
+                System.getProperty("user.dir"));
+    }
+
+    private static String k6Path() {
+        String configured = configuredK6Path();
+        if (configured != null) return configured;
+        Path bundled = bundledK6Path();
+        return java.nio.file.Files.isRegularFile(bundled) ? bundled.toString() : "k6 (PATH)";
+    }
+
+    private static String configuredK6Path() {
+        String path = System.getenv("K6_BIN");
+        if (path == null || path.isBlank()) path = System.getenv("K6_PATH");
+        return path == null || path.isBlank() ? null : path;
+    }
+
+    private static Path bundledK6Path() {
+        String executable = isWindows() ? "k6.exe" : "k6";
+        return Path.of("tools", "k6", executable);
+    }
+
+    static boolean isExecutableAvailable(String executable, String path, String pathExt, String userDir) {
+        Path executablePath;
+        try {
+            executablePath = Path.of(executable);
+        } catch (java.nio.file.InvalidPathException e) {
+            LOG.warn("Configured k6 executable path is invalid");
+            return false;
+        }
+
+        if (executablePath.isAbsolute() || executablePath.getNameCount() > 1) {
+            if (!executablePath.isAbsolute()) executablePath = Path.of(userDir).resolve(executablePath);
+            return isExecutableFile(executablePath);
+        }
+        if (path == null || path.isBlank()) return false;
+
+        List<String> names = executableNames(executablePath.toString(), pathExt);
+        for (String directory : path.split(Pattern.quote(java.io.File.pathSeparator))) {
+            if (directory.isBlank()) continue;
+            Path directoryPath = Path.of(directory);
+            if (!directoryPath.isAbsolute()) directoryPath = Path.of(userDir).resolve(directoryPath);
+            for (String name : names) {
+                if (isExecutableFile(directoryPath.resolve(name))) return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<String> executableNames(String executable, String pathExt) {
+        if (!isWindows()) return List.of(executable);
+        String extensions = pathExt == null || pathExt.isBlank() ? ".COM;.EXE;.BAT;.CMD" : pathExt;
+        List<String> names = new ArrayList<>();
+        names.add(executable);
+        for (String extension : extensions.split(";")) {
+            if (!extension.isBlank() && !executable.toLowerCase().endsWith(extension.toLowerCase())) {
+                names.add(executable + extension);
+            }
+        }
+        return names;
+    }
+
+    private static boolean isExecutableFile(Path path) {
+        return java.nio.file.Files.isRegularFile(path)
+                && (isWindows() || java.nio.file.Files.isExecutable(path));
+    }
+
+    private static boolean isWindows() {
+        return System.getProperty("os.name").toLowerCase().contains("win");
     }
 
     private static String envOrDefault(String key, String def) {

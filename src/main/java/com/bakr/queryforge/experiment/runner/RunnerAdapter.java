@@ -30,4 +30,13 @@ public interface RunnerAdapter {
      */
     Process execute(ExperimentTemplate template, Map<String, String> parameters, Path workDir)
             throws IOException, InterruptedException;
+
+    /**
+     * Locate the runner's normalized summary after the process has exited.
+     *
+     * @return summary path, or {@code null} when this adapter does not produce one
+     */
+    default Path locateSummary(Path workDir, Map<String, String> parameters) {
+        return null;
+    }
 }
