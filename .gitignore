@@ -49,6 +49,8 @@ desktop.ini
 # ===== Secrets / local env =====
 .env
 .env.*
+backups/
+/queryforge-backup.dump
 
 # ===== Generated benchmark artifacts (reproducible via scripts/benchmark.sh) =====
 benchmark/runs/

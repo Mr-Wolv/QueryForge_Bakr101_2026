@@ -127,6 +127,7 @@ A lightweight perf-regression check (NFR5) is included:
 ## Documentation map
 
 - [docs/architecture.md](docs/architecture.md) — components and request paths
+- [docs/operations.md](docs/operations.md) — local operations, backup verification, and deployment limits
 - [docs/benchmarks.md](docs/benchmarks.md) — experiment index, benchmark matrix, reproduction commands
 - [docs/experiments/](docs/experiments/) — QF-000 (scaling), QF-001 (index), QF-002 (pagination), QF-003 (concurrency), QF-004 (index ordering), raw plans
 - [docs/conclusions.md](docs/conclusions.md) — engineering conclusions, tradeoffs, and the next justified levers
