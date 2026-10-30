@@ -139,10 +139,16 @@ A lightweight Angular 22 evidence browser lets you inspect experiments, run hist
 Screenshots are generated locally (and are not committed); run `npm run e2e:screenshots` from
 `frontend` after starting the backend and preparing run history.
 
-The production build currently emits a **345.77 kB initial bundle** (estimated **95.31 kB
+The production build currently emits a **346.34 kB initial bundle** (estimated **95.18 kB
 transfer**) with charts and page features split into lazy route chunks. CI enforces an initial
 bundle warning at 400 kB and fails above 500 kB; these bundle limits complement, but do not replace,
 measured API and PostgreSQL latency checks.
+
+The backend exposes request timing through `/actuator/metrics/http.server.requests` and
+Prometheus-compatible histogram buckets through `/actuator/prometheus`, so p95/p99 can be
+aggregated over a representative request window instead of inferred from a single maximum.
+Legacy benchmark summaries are kept in memory between requests and refreshed from disk every
+two seconds, avoiding repeated JSON parsing while keeping externally written result files visible.
 
 ### Reproducible result story
 
@@ -177,7 +183,9 @@ cd frontend && npm run build         # Angular production build
 > use the development default for production.
 
 Playwright starts the frontend from this checkout automatically. If port `4200` is occupied, set
-`PLAYWRIGHT_PORT` to a free port; if overriding `PLAYWRIGHT_BASE_URL`, point it to that same server.
+`PLAYWRIGHT_PORT` to a free port. To test an already running app (including Docker Compose's
+dynamically assigned frontend port), set `PLAYWRIGHT_BASE_URL` to that app's URL; Playwright then
+uses the existing app without starting a second frontend server.
 The deterministic first-session suite runs without a backend using `npm run e2e:ci`; it stubs the
 API and is the browser flow exercised in CI. The Docker backend image bundles k6 and the
 experiment scripts; local `mvn spring-boot:run` needs k6 available on `PATH` or configured with

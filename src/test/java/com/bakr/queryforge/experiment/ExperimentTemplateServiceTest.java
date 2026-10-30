@@ -2,10 +2,13 @@ package com.bakr.queryforge.experiment;
 
 import com.bakr.queryforge.measurement.Metrics;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +16,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ExperimentTemplateServiceTest {
+
+    @TempDir
+    Path tempDir;
 
     private final ExperimentTemplateService templates = new ExperimentTemplateService();
 
@@ -58,6 +64,51 @@ class ExperimentTemplateServiceTest {
         List<ExperimentRun> runs = templates.loadRuns();
         assertThat(runs).isNotEmpty();
         assertThat(runs).allMatch(r -> r.id() != null && r.state() != null);
+    }
+
+    @Test
+    void loadRunsCachesUnchangedFilesAndRefreshesChangedOrDeletedFiles() throws IOException {
+        Path resultsDir = Files.createDirectories(tempDir.resolve("results"));
+        ExperimentTemplateService cachedTemplates =
+                new ExperimentTemplateService(resultsDir, resultsDir.resolve("docs"), Duration.ZERO);
+        Path result = resultsDir.resolve("qf001-cache-test.json");
+        Files.writeString(result, """
+                {"state":{"testRunDurationMs":10},"metrics":{}}
+                """);
+        Files.setLastModifiedTime(result, FileTime.fromMillis(1_700_000_000_000L));
+
+        ExperimentRun first = cachedTemplates.loadRuns().get(0);
+        ExperimentRun unchanged = cachedTemplates.loadRuns().get(0);
+        assertThat(unchanged).isSameAs(first);
+
+        Files.writeString(result, """
+                {"state":{"testRunDurationMs":20},"metrics":{}}
+                """);
+        Files.setLastModifiedTime(result, FileTime.fromMillis(1_700_000_001_000L));
+        ExperimentRun updated = cachedTemplates.loadRuns().get(0);
+        assertThat(updated).isNotSameAs(first);
+        assertThat(updated.durationMs()).isEqualTo(20);
+
+        Files.delete(result);
+        assertThat(cachedTemplates.loadRuns()).isEmpty();
+    }
+
+    @Test
+    void loadRunsReusesRecentSnapshotWithoutRescanningFiles() throws IOException {
+        Path resultsDir = Files.createDirectories(tempDir.resolve("recent-results"));
+        ExperimentTemplateService cachedTemplates =
+                new ExperimentTemplateService(resultsDir, resultsDir.resolve("docs"), Duration.ofHours(1));
+        Path result = resultsDir.resolve("qf001-recent-cache-test.json");
+        Files.writeString(result, """
+                {"state":{"testRunDurationMs":10},"metrics":{}}
+                """);
+
+        ExperimentRun first = cachedTemplates.loadRuns().get(0);
+        Files.writeString(result, """
+                {"state":{"testRunDurationMs":20},"metrics":{}}
+                """);
+
+        assertThat(cachedTemplates.loadRuns().get(0)).isSameAs(first);
     }
 
     @Test
