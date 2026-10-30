@@ -81,4 +81,56 @@ class PlanParserTest {
         assertThat(root.children().get(1).type()).isEqualTo("Heap Blocks");
         assertThat(root.children().get(1).properties()).containsEntry("heapBlocks", "exact=1");
     }
+
+    @Test
+    void handlesParallelSeqScanWithWorkers() {
+        String raw = """
+                Parallel Seq Scan on products  (cost=0.00..100.00 rows=1000 width=64)
+                  Buffers: shared read=8
+                """;
+        PlanNode root = parser.parse(raw);
+        assertThat(root.type()).isEqualTo("Parallel Seq Scan on products");
+        assertThat(root.properties()).containsEntry("rows", "1000");
+    }
+
+    @Test
+    void handlesHashJoinWithCondition() {
+        String raw = """
+                Hash Join  (cost=10.00..200.00 rows=50 width=32)
+                  Hash Cond: a.id = b.id
+                  ->  Seq Scan on a  (cost=0.00..50.00 rows=1000 width=16)
+                  ->  Hash  (cost=30.00..30.00 rows=500 width=16)
+                        ->  Seq Scan on b  (cost=0.00..30.00 rows=500 width=16)
+                """;
+        PlanNode root = parser.parse(raw);
+        assertThat(root.type()).isEqualTo("Hash Join");
+        assertThat(root.properties()).containsEntry("hash_cond", "a.id = b.id");
+        assertThat(root.children()).hasSize(2);
+    }
+
+    @Test
+    void handlesCteScanAndWrappedLines() {
+        String raw = """
+                CTE Scan on cte  (cost=0.00..150.00 rows=500 width=32)
+                  Filter: (col IS NOT NULL)
+                """;
+        PlanNode root = parser.parse(raw);
+        assertThat(root.type()).isEqualTo("CTE Scan on cte");
+        assertThat(root.properties()).containsEntry("filter", "(col IS NOT NULL)");
+    }
+
+    @Test
+    void skipsSettingsAndExtractsExecutionTimes() {
+        String raw = """
+                Seq Scan on users  (cost=0.00..10.00 rows=100 width=32)
+                Settings: enable_indexscan = on
+                Planning Time: 5 ms
+                Execution Time: 12 ms
+                """;
+        PlanNode root = parser.parse(raw);
+        assertThat(root.type()).isEqualTo("Seq Scan on users");
+        assertThat(root.properties()).containsEntry("planningTimeMs", "5")
+                .containsEntry("executionTimeMs", "12");
+        assertThat(root.children()).isEmpty();
+    }
 }

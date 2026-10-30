@@ -65,10 +65,13 @@ public class PlanParser {
             int indent = line.length() - line.stripLeading().length();
             PlanNode candidate = nodeFromLine(line, indent);
 
-            if (currentType != null && indent > currentIndent && candidate.type().equals("unknown")) {
-                appendProperties(currentProps, candidate.properties());
-                currentRaw.append('\n').append(candidate.raw());
-                continue;
+            if (currentType != null && indent > currentIndent) {
+                String cType = candidate.type();
+                if (cType.equals("unknown") || isPropertyLine(candidate.raw(), currentType)) {
+                    appendProperties(currentProps, candidate.properties());
+                    currentRaw.append('\n').append(candidate.raw());
+                    continue;
+                }
             }
 
             if (currentType != null) {
@@ -203,6 +206,20 @@ public class PlanParser {
         }
 
         return headline.isBlank() ? "unknown" : headline;
+    }
+
+    private static boolean isPropertyLine(String raw, String parentType) {
+        if (raw == null || raw.isBlank()) return false;
+        String lower = raw.toLowerCase();
+        // Nodes always contain '(' before any property values; property lines do not
+        if (lower.contains("(cost=") || lower.contains("(actual time=")) return false;
+        if (lower.startsWith("-> ")) return false;
+        // Continuation of known property-bearing parents
+        if (parentType == null) return false;
+        return switch (parentType.split("\\s+")[0]) {
+            case "Hash", "Merge", "Nested", "Append", "Result" -> true;
+            default -> lower.matches(".*\\b(filter|cond|workers|batches|conflicts|wait|single|parent)\\b.*:.*");
+        };
     }
 
     private static void appendProperties(Map<String, String> target, Map<String, String> source) {
