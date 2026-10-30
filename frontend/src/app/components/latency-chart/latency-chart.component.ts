@@ -107,15 +107,16 @@ export class LatencyChartComponent implements OnInit, OnDestroy {
   }
 
   private palette() {
-    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const styles = getComputedStyle(document.documentElement);
+    const token = (name: string) => styles.getPropertyValue(name).trim();
     return {
-      bars: dark ? '#e8e8e4' : '#1a1a1a',
-      label: dark ? '#c9c9c4' : '#555555',
-      tick: dark ? '#8d8d88' : '#999999',
-      grid: dark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(17, 17, 17, 0.06)',
-      tooltipBg: dark ? '#232427' : '#ffffff',
-      tooltipText: dark ? '#ededed' : '#111111',
-      tooltipBorder: dark ? '#3d3e43' : '#e5e5e5'
+      bars: token('--color-chart-1'),
+      label: token('--color-chart-2'),
+      tick: token('--color-text-muted'),
+      grid: token('--color-chart-grid'),
+      tooltipBg: token('--color-chart-tooltip-surface'),
+      tooltipText: token('--color-chart-tooltip-text'),
+      tooltipBorder: token('--color-chart-tooltip-border')
     };
   }
 

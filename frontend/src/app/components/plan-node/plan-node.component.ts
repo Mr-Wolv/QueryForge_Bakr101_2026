@@ -13,8 +13,9 @@ interface PlanNode {
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="node" *ngIf="node">
-      <div class="head" (click)="toggle()" [attr.tabindex]="0" (keydown.enter)="toggle()" role="treeitem" [attr.aria-expanded]="expanded">
+    <div class="node" *ngIf="node" role="treeitem" [attr.aria-expanded]="hasChildren ? expanded : null">
+      <button *ngIf="hasChildren; else leafHead" class="head" type="button" (click)="toggle()"
+        [attr.aria-label]="(expanded ? 'Collapse ' : 'Expand ') + normalizedType + ' plan node'">
         <span class="caret" [class.expanded]="expanded">&#9654;</span>
         <span class="type" [class.unknown]="isUnknown">{{ normalizedType }}</span>
         <span class="relation" *ngIf="relation">{{ relation }}</span>
@@ -27,7 +28,23 @@ interface PlanNode {
           <span class="metric" title="buffers" *ngIf="props['buffers']">{{ props['buffers'] }}</span>
         </span>
         <span class="unknown-badge" *ngIf="isUnknown && node.type.length">UNKNOWN</span>
-      </div>
+      </button>
+      <ng-template #leafHead>
+        <div class="head">
+          <span class="caret"></span>
+          <span class="type" [class.unknown]="isUnknown">{{ normalizedType }}</span>
+          <span class="relation" *ngIf="relation">{{ relation }}</span>
+          <span class="alias" *ngIf="alias">{{ alias }}</span>
+          <span class="key" *ngIf="key">{{ key }}</span>
+          <span class="metrics" *ngIf="hasMetrics">
+            <span class="metric" title="actual time">{{ props['actualStartMs'] }}..{{ props['actualEndMs'] }} ms</span>
+            <span class="metric" title="rows">{{ props['rows'] }} rows</span>
+            <span class="metric" title="cost">{{ props['planCostStart'] }}..{{ props['planCostEnd'] }}</span>
+            <span class="metric" title="buffers" *ngIf="props['buffers']">{{ props['buffers'] }}</span>
+          </span>
+          <span class="unknown-badge" *ngIf="isUnknown && node.type.length">UNKNOWN</span>
+        </div>
+      </ng-template>
       <div class="raw-tooltip" *ngIf="isUnknown && node.raw">{{ node.raw }}</div>
       <div class="children" *ngIf="expanded && node.children?.length" role="group">
         <app-plan-node *ngFor="let child of node.children" [node]="child" [level]="level + 1" [unknownTypes]="unknownTypes"></app-plan-node>
@@ -35,18 +52,19 @@ interface PlanNode {
     </div>
   `,
   styles: [`
-    .node { margin-left: 16px; }
-    .head { display: flex; align-items: center; gap: 6px; padding: 4px 0; cursor: pointer; user-select: none; }
-    .head:hover { background: rgba(0,0,0,0.02); }
-    .caret { width: 12px; font-size: 10px; color: #666; transition: transform 0.15s; }
+    .node { margin-left: var(--space-4); }
+    .head { display: flex; width: 100%; min-width: 0; align-items: center; gap: var(--space-2); padding: 4px 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--color-text-primary); font: inherit; text-align: left; white-space: normal; cursor: pointer; user-select: none; }
+    .head:hover { background: var(--color-accent-subtle); }
+    .head:disabled { cursor: default; }
+    .caret { width: 12px; flex: 0 0 12px; font-size: 10px; color: var(--color-text-muted); transition: transform var(--transition-fast); }
     .caret.expanded { transform: rotate(90deg); }
     .caret:empty::before { content: ' '; }
-    .type { font-family: ui-monospace, monospace; font-size: 13px; font-weight: 600; color: #111; }
-    .type.unknown { color: #b45309; background: #fef3c7; padding: 1px 6px; border-radius: 3px; }
-    .relation, .alias, .key { color: #555; font-size: 12px; }
-    .metrics { margin-left: auto; display: flex; gap: 8px; font-size: 11px; color: #666; font-variant-numeric: tabular-nums; }
-    .unknown-badge { font-size: 10px; font-weight: 700; color: #92400e; background: #fef3c7; border: 1px solid #fcd34d; padding: 1px 6px; border-radius: 3px; letter-spacing: 0.05em; }
-    .raw-tooltip { padding: 6px 10px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 4px; font-size: 12px; color: #7c2d12; margin: 2px 0 2px 24px; white-space: pre-wrap; }
+    .type { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--color-text-primary); }
+    .type.unknown { color: var(--color-warning); background: var(--color-warning-bg); padding: 1px 6px; border-radius: var(--radius-sm); }
+    .relation, .alias, .key { color: var(--color-text-secondary); font-size: 12px; }
+    .metrics { margin-left: auto; display: flex; flex-wrap: wrap; gap: var(--space-2); font-size: 11px; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+    .unknown-badge { font-size: 10px; font-weight: 700; color: var(--color-warning); background: var(--color-warning-bg); border: 1px solid var(--color-warning); padding: 1px 6px; border-radius: var(--radius-sm); letter-spacing: 0.05em; }
+    .raw-tooltip { padding: var(--space-2) var(--space-3); background: var(--color-warning-bg); border: 1px solid var(--color-warning); border-radius: var(--radius-sm); font-size: 12px; color: var(--color-text-primary); margin: 2px 0 2px var(--space-6); white-space: pre-wrap; }
   `]
 })
 export class PlanNodeComponent {
@@ -85,6 +103,10 @@ export class PlanNodeComponent {
     if (!this.node) return false;
     const p = this.node.properties;
     return !!(p['actualStartMs'] || p['rows'] || p['planCostStart'] || p['buffers']);
+  }
+
+  get hasChildren(): boolean {
+    return !!this.node?.children?.length;
   }
 
   get props(): Record<string, string> {

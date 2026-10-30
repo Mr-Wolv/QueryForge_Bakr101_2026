@@ -12,11 +12,10 @@ test.describe('QueryForge E2E smoke', () => {
 
   test('catalog lists experiment templates', async ({ page }) => {
     await page.goto('/experiments');
-    await expect(page.locator('h1')).toContainText('Experiment catalog');
+    await expect(page.locator('h1')).toContainText('Choose a question worth measuring.');
     // At least one card should be visible (templates are hardcoded)
     await expect(page.locator('.card').first()).toBeVisible();
-    // Each card has a title like "QF-001 — ..."
-    await expect(page.locator('.card h2').first()).toHaveText(/^QF-\d+/);
+    await expect(page.locator('.experiment-id').first()).toHaveText(/^QF-\d+/);
   });
 
   test('run history loads existing benchmark runs', async ({ page }) => {
@@ -75,6 +74,26 @@ test.describe('QueryForge E2E smoke', () => {
     await expect(page).toHaveURL(/\/plan\//);
     await expect(page.locator('app-plan-explorer .tree')).toBeVisible();
     await expect(page.locator('app-plan-node').first()).toBeVisible();
+  });
+
+  test('plan tree nodes expand and collapse with keyboard-operable controls', async ({ page }) => {
+    await page.goto('/runs/qf001-baseline-search-1M-r10');
+    await page.locator('.plan-link').first().click();
+
+    const node = page.locator('.tree [role="treeitem"][aria-expanded]').first();
+    const toggle = node.locator(':scope > button.head');
+    const children = node.locator(':scope > .children');
+    await expect(node).toHaveAttribute('aria-expanded', 'true');
+    await expect(children).toBeVisible();
+
+    await toggle.click();
+    await expect(node).toHaveAttribute('aria-expanded', 'false');
+    await expect(children).toHaveCount(0);
+
+    await toggle.focus();
+    await page.keyboard.press('Space');
+    await expect(node).toHaveAttribute('aria-expanded', 'true');
+    await expect(children).toBeVisible();
   });
 
   test('navigation is keyboard accessible', async ({ page }) => {

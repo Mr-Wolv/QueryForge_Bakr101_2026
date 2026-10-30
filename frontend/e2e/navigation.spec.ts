@@ -40,7 +40,7 @@ test.describe('navigation', () => {
 
     await page.getByRole('link', { name: 'Catalog', exact: true }).click();
     await expectRoute(page, '/experiments');
-    await expect(page.locator('h1')).toContainText('Experiment catalog');
+    await expect(page.locator('h1')).toContainText('Choose a question worth measuring.');
 
     await page.getByRole('link', { name: 'Runs', exact: true }).click();
     await expectRoute(page, '/runs');
@@ -111,10 +111,18 @@ test.describe('navigation', () => {
   test('theme toggle switches the data-theme attribute', async ({ page }) => {
     await page.goto('/');
     const before = await page.locator('html').getAttribute('data-theme');
+    const getBackgroundTokens = () => page.evaluate(() => ({
+      canonical: getComputedStyle(document.documentElement).getPropertyValue('--color-background').trim(),
+      legacy: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(),
+    }));
+    const lightTokens = await getBackgroundTokens();
+    expect(lightTokens.legacy).toBe(lightTokens.canonical);
     const next = before === 'dark' ? 'light' : 'dark';
     const toggle = page.getByRole('button', { name: /switch to (dark|light) mode/i });
     await toggle.click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', next);
+    const darkTokens = await getBackgroundTokens();
+    expect(darkTokens.legacy).toBe(darkTokens.canonical);
     await expect(toggle).toHaveAttribute('aria-label', `Switch to ${before} mode`);
     await expect.poll(() => page.evaluate(() => localStorage.getItem('queryforge-theme'))).toBe(next);
 
