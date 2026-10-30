@@ -133,4 +133,60 @@ class PlanParserTest {
                 .containsEntry("executionTimeMs", "12");
         assertThat(root.children()).isEmpty();
     }
+
+    @Test
+    void handlesBitmapHeapScanWithRecheck() {
+        String raw = """
+                Bitmap Heap Scan on products  (cost=20.00..150.00 rows=50 width=32)
+                  Recheck Cond: (id > 100)
+                  ->  Bitmap Index Scan on idx_products_id  (cost=0.00..20.00 rows=50 width=0)
+                        Index Cond: (id > 100)
+                """;
+        PlanNode root = parser.parse(raw);
+        assertThat(root.type()).isEqualTo("Bitmap Heap Scan on products");
+        assertThat(root.properties()).containsEntry("recheck_cond", "(id > 100)");
+        assertThat(root.children()).hasSize(1);
+        assertThat(root.children().get(0).type()).isEqualTo("Bitmap Index Scan on idx_products_id");
+    }
+
+    @Test
+    void handlesIncrementalSort() {
+        String raw = """
+                Incremental Sort  (cost=0.00..100.00 rows=500 width=32)
+                  Sort Key: name
+                  Presorted Key: name
+                  ->  Seq Scan on users  (cost=0.00..80.00 rows=500 width=32)
+                """;
+        PlanNode root = parser.parse(raw);
+        assertThat(root.type()).isEqualTo("Incremental Sort");
+        assertThat(root.properties()).containsEntry("sort_key", "name");
+        assertThat(root.properties()).containsEntry("presorted_key", "name");
+    }
+
+    @Test
+    void handlesGatherNotMerge() {
+        String raw = """
+                Gather  (cost=100.00..200.00 rows=100 width=32) (actual time=1.000..5.000 rows=100 loops=1)
+                  Workers Planned: 4
+                  Workers Launched: 4
+                  ->  Parallel Seq Scan on products  (cost=0.00..180.00 rows=25 width=32)
+                """;
+        PlanNode root = parser.parse(raw);
+        assertThat(root.type()).isEqualTo("Gather");
+        assertThat(root.properties()).containsEntry("workers_planned", "4");
+        assertThat(root.children()).hasSize(1);
+    }
+
+    @Test
+    void handlesResultNodeWithOneTimeFilter() {
+        String raw = """
+                Result  (cost=0.00..10.00 rows=1 width=4) (actual time=0.001..0.001 rows=1 loops=1)
+                  One-Time Filter: (random() > 0.5)
+                  ->  Result  (cost=0.00..0.00 rows=1 width=4)
+                """;
+        PlanNode root = parser.parse(raw);
+        assertThat(root.type()).isEqualTo("Result");
+        assertThat(root.properties()).containsEntry("one-time_filter", "(random() > 0.5)");
+        assertThat(root.children()).hasSize(1);
+    }
 }

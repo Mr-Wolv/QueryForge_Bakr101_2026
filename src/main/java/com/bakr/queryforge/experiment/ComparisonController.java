@@ -38,7 +38,7 @@ public class ComparisonController {
         }
         try {
             ComparisonReport report = comparisonService.compare(a, b, createdBy);
-            return ResponseEntity.ok(report);
+            return ResponseEntity.status(HttpStatus.CREATED).body(report);
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
         } catch (IOException e) {
@@ -71,8 +71,7 @@ public class ComparisonController {
             ExperimentRun right = runs.findById(report.rightRunId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "right run not found"));
             content = comparisonService.buildHtml(left, right,
-                    report.verdict().compatible(), report.verdict().blockers(),
-                    report.verdict().warnings(), report.verdict().diff());
+                    report.verdict(), report.metricsDelta());
             contentType = "text/html; charset=utf-8";
         } else if ("markdown".equalsIgnoreCase(format)) {
             content = report.content();

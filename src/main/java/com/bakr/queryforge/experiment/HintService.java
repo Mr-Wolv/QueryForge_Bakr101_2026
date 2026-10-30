@@ -77,8 +77,8 @@ public class HintService {
         }
 
         // Rule 5: p99 tail vs p95
-        Map<String, java.math.BigDecimal> pctls = new LinkedHashMap<>(metrics.iterationPercentiles);
-        pctls.putAll(metrics.httpPercentiles);
+        Map<String, java.math.BigDecimal> pctls = new LinkedHashMap<>(metrics.iterationPercentiles());
+        pctls.putAll(metrics.httpPercentiles());
         java.math.BigDecimal p95 = pctls.getOrDefault("p95", java.math.BigDecimal.ZERO);
         java.math.BigDecimal p99 = pctls.getOrDefault("p99", java.math.BigDecimal.ZERO);
         if (p95.compareTo(java.math.BigDecimal.ZERO) > 0 && p99.compareTo(p95.multiply(java.math.BigDecimal.valueOf(2))) > 0) {

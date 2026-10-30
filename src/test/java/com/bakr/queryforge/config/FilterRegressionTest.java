@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties = "qf.rate-limit.requests-per-minute=5")
 @AutoConfigureMockMvc
 class FilterRegressionTest {
 
@@ -24,14 +24,33 @@ class FilterRegressionTest {
                 .andExpect(header().string("X-Request-Id", org.hamcrest.Matchers.notNullValue()));
     }
 
+    /**
+     * The limit is configured down to 5 for this context so the contract stays testable without
+     * hammering 60 requests. {@code /actuator} is exempt (health checks must never be throttled),
+     * so the probe goes through a real API path.
+     */
     @Test
     void rateLimitRejectsAfterExcessRequests() throws Exception {
         String clientIp = "10.0.0." + (int) (Math.random() * 254 + 1);
-        for (int i = 0; i < 60; i++) {
+        for (int i = 0; i < 5; i++) {
+            mvc.perform(get("/api/runs").param("page", "0").param("size", "1")
+                    .header("X-Forwarded-For", clientIp))
+                    .andExpect(status().isOk());
+        }
+        mvc.perform(get("/api/runs").param("page", "0").param("size", "1")
+                .header("X-Forwarded-For", clientIp))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", "60"))
+                .andExpect(header().string("Content-Type", org.hamcrest.Matchers.containsString("application/problem+json")));
+    }
+
+    /** A throttled request must be a 429 problem document, never a 500 from the ERROR dispatch. */
+    @Test
+    void healthChecksAreNotThrottled() throws Exception {
+        String clientIp = "198.51.100." + (int) (Math.random() * 254 + 1);
+        for (int i = 0; i < 10; i++) {
             mvc.perform(get("/actuator/health").header("X-Forwarded-For", clientIp))
                     .andExpect(status().isOk());
         }
-        mvc.perform(get("/actuator/health").header("X-Forwarded-For", clientIp))
-                .andExpect(status().isTooManyRequests());
     }
 }

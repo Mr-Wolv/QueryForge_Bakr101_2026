@@ -2,6 +2,7 @@ package com.bakr.queryforge.artifact;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -37,6 +38,101 @@ public class ArtifactService {
         }
     };
 
+    private final ManifestStore manifests;
+
+    public ArtifactService() {
+        this(new ManifestStore());
+    }
+
+    @Autowired
+    public ArtifactService(ManifestStore manifests) {
+        this.manifests = manifests;
+    }
+
+    /**
+     * Resolve an artifact that belongs to a specific run.
+     *
+     * <p>Only IDs listed in that run's manifest are servable, and only when the
+     * resolved path stays inside an allowed evidence directory. This prevents a
+     * crafted artifact ID from reading arbitrary files.
+     */
+    public Optional<Path> resolveForRun(String runId, String artifactId) {
+        if (artifactId == null || artifactId.isBlank()) return Optional.empty();
+        if (artifactId.contains("..") || artifactId.contains("/") || artifactId.contains("\\")) {
+            return Optional.empty();
+        }
+
+        if ("manifest".equals(artifactId)) {
+            Path canonical = manifests.manifestPath(runId);
+            if (Files.isRegularFile(canonical)) return Optional.of(normalize(canonical));
+            Path legacy = manifests.legacyManifestPath(runId);
+            if (Files.isRegularFile(legacy)) return Optional.of(normalize(legacy));
+        }
+
+        Optional<RunManifest> manifest = manifests.read(runId);
+        if (manifest.isPresent()) {
+            for (RunManifest.ArtifactEntry entry : manifest.get().artifacts()) {
+                if (artifactId.equals(entry.artifactId())
+                        || artifactId.equals(ManifestStore.stem(entry.location()))) {
+                    Optional<Path> resolved = safeResolve(entry.location(), runId);
+                    if (resolved.isPresent()) return resolved;
+                }
+            }
+        }
+        // Historical runs have no manifest; fall back to the legacy catalog.
+        return resolve(artifactId);
+    }
+
+    private Optional<Path> safeResolve(String location, String runId) {
+        if (location == null || location.isBlank()) return Optional.empty();
+        List<Path> roots = new ArrayList<>();
+        roots.add(manifests.runDir(runId));
+        roots.add(ROOT.resolve("benchmark").resolve("runs"));
+        roots.add(ROOT.resolve("benchmark").resolve("results"));
+        roots.add(ROOT.resolve("benchmark").resolve("comparisons"));
+        roots.add(ROOT.resolve("docs").resolve("experiments").resolve("plans"));
+
+        Path candidate = Path.of(location);
+        if (!candidate.isAbsolute()) candidate = ROOT.resolve(candidate);
+        candidate = candidate.normalize().toAbsolutePath();
+        if (Files.isRegularFile(candidate) && withinAny(candidate, roots)) {
+            return Optional.of(candidate);
+        }
+
+        // The manifest may have been produced on another machine. Re-anchor the
+        // basename inside the run directory before giving up.
+        Path fileName = Path.of(location).getFileName();
+        if (fileName != null) {
+            Path local = manifests.runDir(runId).resolve(fileName).normalize();
+            if (Files.isRegularFile(local)) return Optional.of(local);
+        }
+        return Optional.empty();
+    }
+
+    private static boolean withinAny(Path path, List<Path> roots) {
+        for (Path root : roots) {
+            if (path.startsWith(root.normalize().toAbsolutePath())) return true;
+        }
+        return false;
+    }
+
+    /** Artifact catalog for a run, including the manifest itself. */
+    public List<RunArtifact> catalogForRun(String runId, List<RunArtifact> artifacts) {
+        List<RunArtifact> catalog = new ArrayList<>();
+        Path manifestPath = manifests.manifestPath(runId);
+        if (!Files.isRegularFile(manifestPath)) manifestPath = manifests.legacyManifestPath(runId);
+        if (Files.isRegularFile(manifestPath)) {
+            catalog.add(new RunArtifact("manifest", "application/json",
+                    manifestPath.toString(), "Immutable run manifest with checksums"));
+        }
+        for (RunArtifact artifact : artifacts) {
+            boolean duplicate = catalog.stream()
+                    .anyMatch(a -> a.artifactId().equals(artifact.artifactId()));
+            if (!duplicate) catalog.add(artifact);
+        }
+        return catalog;
+    }
+
     public Optional<Path> resolve(String artifactId) {
         if (artifactId == null || artifactId.isBlank()) return Optional.empty();
         if (artifactId.contains("..") || artifactId.contains("/") || artifactId.contains("\\")) {
@@ -45,12 +141,20 @@ public class ArtifactService {
         // Try known results JSON
         Path p = ROOT.resolve("benchmark").resolve("results").resolve(artifactId + ".json");
         if (Files.isRegularFile(p)) return Optional.of(normalize(p));
-        // Try known plan text
-        p = ROOT.resolve("docs").resolve("experiments").resolve("plans").resolve(artifactId + "-explain.txt");
-        if (Files.isRegularFile(p)) return Optional.of(normalize(p));
+        // Try known plan text. Artifact IDs are file stems, so the file itself is
+        // {artifactId}.txt; the legacy naming convention appended "-explain".
+        Path plans = ROOT.resolve("docs").resolve("experiments").resolve("plans");
+        for (String name : List.of(artifactId + ".txt", artifactId + "-explain.txt")) {
+            p = plans.resolve(name);
+            if (Files.isRegularFile(p)) return Optional.of(normalize(p));
+        }
         // Fallback: search under docs/experiments/plans/ for exact stem
-        try (var stream = Files.list(ROOT.resolve("docs").resolve("experiments").resolve("plans"))) {
-            return stream.filter(f -> f.getFileName().toString().equals(artifactId + "-explain.txt"))
+        try (var stream = Files.list(plans)) {
+            return stream.filter(f -> {
+                        String name = f.getFileName().toString();
+                        return name.equals(artifactId + ".txt")
+                                || name.equals(artifactId + "-explain.txt");
+                    })
                     .findFirst().map(ArtifactService::normalize);
         } catch (IOException e) {
             return Optional.empty();

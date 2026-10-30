@@ -21,16 +21,19 @@ public record RunManifest(
         long durationMs,
         String outcome,
         Map<String, String> parameters,
+        Map<String, String> labels,
         Map<String, Object> environmentFingerprint,
         String migrationVersion,
         String indexState,
         Map<String, Object> resourceLimits,
         String appCommit,
+        Map<String, Object> summaryMetrics,
         List<ArtifactEntry> artifacts,
         String checksumSha256
 ) {
 
     public record ArtifactEntry(
+            String artifactId,
             String kind,
             String contentType,
             String location,

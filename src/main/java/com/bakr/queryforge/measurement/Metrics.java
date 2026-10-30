@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -71,6 +72,61 @@ public record Metrics(
 
     public static Metrics empty() {
         return new Metrics(0, Map.of(), Map.of(), 0, 0.0);
+    }
+
+    /** Build normalized metrics from a manifest {@code summaryMetrics} map. */
+    public static Metrics fromSummaryMap(Map<String, Object> summary) {
+        if (summary == null || summary.isEmpty()) return empty();
+        Map<String, BigDecimal> iteration = new LinkedHashMap<>();
+        Map<String, BigDecimal> http = new LinkedHashMap<>();
+        for (String key : List.of("p50", "p95", "p99", "avg", "min", "max", "med")) {
+            BigDecimal plain = decimal(summary.get(key));
+            if (plain != null) iteration.put(key, plain);
+            BigDecimal it = decimal(summary.get("iteration." + key));
+            if (it != null) iteration.put(key, it);
+            BigDecimal ht = decimal(summary.get("http." + key));
+            if (ht != null) http.put(key, ht);
+        }
+        long duration = longValue(summary.get("testRunDurationMs"));
+        long iterations = longValue(summary.get("iterations"));
+        double rps = doubleValue(summary.get("rps"));
+        return new Metrics(duration, iteration, http, iterations, rps);
+    }
+
+    private static BigDecimal decimal(Object value) {
+        if (value instanceof Number n) return new BigDecimal(n.toString());
+        if (value instanceof String s) {
+            try {
+                return new BigDecimal(s);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static long longValue(Object value) {
+        if (value instanceof Number n) return n.longValue();
+        if (value instanceof String s) {
+            try {
+                return Long.parseLong(s);
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+        return 0;
+    }
+
+    private static double doubleValue(Object value) {
+        if (value instanceof Number n) return n.doubleValue();
+        if (value instanceof String s) {
+            try {
+                return Double.parseDouble(s);
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+        return 0;
     }
 
     private static void put(Map<String, BigDecimal> map, String key, com.fasterxml.jackson.databind.JsonNode node) {

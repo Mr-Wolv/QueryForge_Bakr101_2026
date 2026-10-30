@@ -1,6 +1,8 @@
 package com.bakr.queryforge.experiment;
 
+import com.bakr.queryforge.artifact.ArtifactService;
 import com.bakr.queryforge.artifact.RunArtifact;
+import com.bakr.queryforge.service.PageResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -8,7 +10,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/runs")
@@ -16,25 +17,21 @@ public class RunHistoryController {
 
     private final ExperimentRunService runs;
     private final ExportService exportService;
+    private final ArtifactService artifactService;
 
-    public RunHistoryController(ExperimentRunService runs, ExportService exportService) {
+    public RunHistoryController(ExperimentRunService runs, ExportService exportService,
+                                ArtifactService artifactService) {
         this.runs = runs;
         this.exportService = exportService;
+        this.artifactService = artifactService;
     }
 
     @GetMapping
-    public List<ExperimentRun> list(
+    public PageResponse<ExperimentRun> list(
             @RequestParam(required = false) String state,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
-        List<ExperimentRun> all = runs.findAll();
-        if (state != null && !state.isBlank()) {
-            all = all.stream().filter(r -> state.equalsIgnoreCase(r.state())).toList();
-        }
-        int from = Math.max(0, page) * Math.max(1, size);
-        int to = Math.min(all.size(), from + Math.max(1, size));
-        if (from >= all.size()) return List.of();
-        return all.subList(from, to);
+            @RequestParam(defaultValue = "20") int size) {
+        return runs.findPage(state, page, size);
     }
 
     @GetMapping("/{id}")
@@ -52,7 +49,7 @@ public class RunHistoryController {
     @GetMapping("/{id}/artifacts")
     public ResponseEntity<List<RunArtifact>> artifacts(@PathVariable String id) {
         return runs.findById(id)
-                .map(r -> ResponseEntity.ok(r.artifacts()))
+                .map(r -> ResponseEntity.ok(artifactService.catalogForRun(id, r.artifacts())))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
