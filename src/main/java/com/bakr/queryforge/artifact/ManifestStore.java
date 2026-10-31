@@ -112,7 +112,35 @@ public class ManifestStore {
     }
 
     public List<RunManifest> readAll() {
+        return readAll(0, Integer.MAX_VALUE);
+    }
+
+    public long countAll() {
+        if (!Files.isDirectory(runsDir)) return 0;
+        long count = 0;
+        try (var stream = Files.list(runsDir)) {
+            count = stream
+                    .filter(Files::isDirectory)
+                    .count();
+        } catch (IOException e) {
+            return 0;
+        }
+        try (var stream = Files.list(runsDir)) {
+            count += stream
+                    .filter(p -> !Files.isDirectory(p))
+                    .filter(p -> p.getFileName().toString().endsWith(".json"))
+                    .count();
+        } catch (IOException e) {
+            return count;
+        }
+        return count;
+    }
+
+    /** Returns a page of manifests sorted by startedAt (newest first). */
+    public List<RunManifest> readAll(int page, int size) {
         if (!Files.isDirectory(runsDir)) return List.of();
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, size);
 
         Map<String, RunManifest> byId = new LinkedHashMap<>();
         List<Path> legacy = new ArrayList<>();
@@ -128,14 +156,18 @@ public class ManifestStore {
         } catch (IOException e) {
             return List.of();
         }
-        // Legacy files only fill gaps; the canonical directory wins when both exist.
         for (Path path : legacy) {
             readPath(path).ifPresent(m -> byId.putIfAbsent(m.runId(), m));
         }
-        return byId.values().stream()
+
+        List<RunManifest> all = byId.values().stream()
                 .sorted(Comparator.comparing(RunManifest::startedAt,
                         Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
+
+        int from = safePage * safeSize;
+        if (from >= all.size()) return List.of();
+        return all.subList(from, Math.min(all.size(), from + safeSize));
     }
 
     /** Recompute the checksum over the canonical manifest form (excluding the checksum). */

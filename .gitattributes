@@ -1,3 +1,23 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+* text=auto eol=lf
+
+*.java text diff=java
+*.ts text
+*.js text
+*.json text
+*.yml text
+*.yaml text
+*.properties text
+*.sql text
 *.sh text eol=lf
+*.py text eol=lf
+*.md text
+*.html text
+*.css text
+Dockerfile text
+.dockerignore text
+.gitignore text
+Makefile text
+secrets/* binary
+benchmark/seed/* binary
+benchmark/results/* binary
+benchmark/runs/* binary

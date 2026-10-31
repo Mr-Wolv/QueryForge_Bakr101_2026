@@ -117,7 +117,7 @@ export interface AuthSession {
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private http = inject(HttpClient);
-  private base = '/api';
+  private base = (typeof window !== 'undefined' && (window as any).__QF_API_BASE__) || '/api';
 
   private readonly cache = new Map<string, { expiry: number; value: any }>();
   private readonly ttlMs = 30_000;
@@ -241,7 +241,6 @@ export class ApiService {
   }
 
   sseEvents(id: string): EventSource {
-    const base = window.location.origin;
-    return new EventSource(`${base}/api/runs/${id}/events`);
+    return new EventSource(`${this.base}/runs/${id}/events`);
   }
 }

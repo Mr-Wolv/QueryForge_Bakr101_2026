@@ -43,15 +43,15 @@ public class ExperimentRunService {
     public PageResponse<ExperimentRun> findPage(String state, int page, int size) {
         int safePage = Math.max(0, page);
         int safeSize = Math.min(100, Math.max(1, size));
-        List<ExperimentRun> all = findAll();
+        List<ExperimentRun> all = orchestrator.loadAll(safePage, safeSize);
         if (state != null && !state.isBlank()) {
             all = all.stream().filter(r -> state.equalsIgnoreCase(r.state())).toList();
         }
-        long total = all.size();
+        long total = orchestrator.countAll();
         int from = safePage * safeSize;
         List<ExperimentRun> content = from >= total
                 ? List.of()
-                : all.subList(from, Math.min(all.size(), from + safeSize));
+                : all;
         return PageResponse.of(content, safePage, safeSize, total);
     }
 

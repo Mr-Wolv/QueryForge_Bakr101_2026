@@ -349,8 +349,17 @@ public class ExperimentOrchestrator {
     }
 
     public List<ExperimentRun> loadAll() {
+        return loadAll(0, Integer.MAX_VALUE);
+    }
+
+    public long countAll() {
+        return manifests.countAll();
+    }
+
+    /** Returns a page of runs sorted by startedAt (newest first), with artifacts eagerly loaded. */
+    public List<ExperimentRun> loadAll(int page, int size) {
         Map<String, ExperimentRun> merged = new LinkedHashMap<>();
-        for (RunManifest manifest : storedManifests.values()) {
+        for (RunManifest manifest : manifests.readAll(page, size)) {
             merged.put(manifest.runId(), toRun(manifest));
         }
         for (ExperimentRun run : activeRuns.values()) {
