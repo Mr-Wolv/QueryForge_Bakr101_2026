@@ -71,16 +71,29 @@ public class ExperimentOrchestrator {
     private final ExecutorService runnerPool =
             Executors.newCachedThreadPool(r -> daemon(r, "qf-runner"));
 
+    private final RunPersistenceService persistence;
+
     public ExperimentOrchestrator(ExperimentTemplateService templates,
                                   ManifestStore manifests,
                                   EnvironmentFingerprintService fingerprints,
                                   RunEventBus events,
                                   List<RunnerAdapter> adapters) {
+        this(templates, manifests, fingerprints, events, adapters, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ExperimentOrchestrator(ExperimentTemplateService templates,
+                                  ManifestStore manifests,
+                                  EnvironmentFingerprintService fingerprints,
+                                  RunEventBus events,
+                                  List<RunnerAdapter> adapters,
+                                  RunPersistenceService persistence) {
         this.templates = templates;
         this.manifests = manifests;
         this.fingerprints = fingerprints;
         this.events = events;
         this.adapters = adapters;
+        this.persistence = persistence;
         performRestartRecovery();
     }
 
@@ -108,6 +121,7 @@ public class ExperimentOrchestrator {
         );
         activeRuns.put(runId, run);
         events.state(runId, run.state());
+        if (persistence != null) persistence.save(run);
         return run;
     }
 
@@ -133,6 +147,7 @@ public class ExperimentOrchestrator {
                 run.metrics(), run.artifacts(), run.appCommit());
         activeRuns.put(runId, running);
         events.state(runId, running.state());
+        if (persistence != null) persistence.save(running);
 
         runnerPool.submit(() -> {
             try {
@@ -242,6 +257,7 @@ public class ExperimentOrchestrator {
                     fingerprint.appCommit());
             result.set(finished);
             activeRuns.put(runId, finished);
+            if (persistence != null) persistence.save(finished);
 
             boolean manifestWritten = true;
             try {
@@ -283,6 +299,7 @@ public class ExperimentOrchestrator {
                     run.metrics(), run.artifacts(), run.appCommit());
             activeRuns.put(runId, cancelling);
             events.state(runId, cancelling.state());
+            if (persistence != null) persistence.save(cancelling);
             return true;
         }
 
@@ -295,6 +312,7 @@ public class ExperimentOrchestrator {
         writeManifest(cancelled, "cancelled by user", fingerprints.capture(), Instant.now());
         events.state(runId, cancelled.state());
         events.complete(runId);
+        if (persistence != null) persistence.save(cancelled);
         return true;
     }
 
@@ -321,6 +339,15 @@ public class ExperimentOrchestrator {
                             fingerprints.capture(), Instant.now());
                 } catch (Exception ignored) {
                     // recovery is best-effort; the original evidence remains on disk
+                }
+            }
+        }
+        // Backfill durable store from file manifests (best-effort).
+        if (persistence != null) {
+            for (RunManifest m : manifests.readAll()) {
+                try {
+                    persistence.save(toRun(m));
+                } catch (Exception ignored) {
                 }
             }
         }
