@@ -220,7 +220,7 @@
 - [x] SEC-006: Prefer run-scoped artifact endpoint; deprecate global
 - [x] SEC-010: Add OWASP Dependency Check + npm audit to CI
 - [x] REP-001, REP-007: Enforce deterministic seeds in data gen + k6
-- [ ] REP-004: Full environment fingerprint in run manifest
+- [x] REP-004: Full environment fingerprint in run manifest
 - [ ] REP-005: Pin Docker images to SHA digests
 
 ### Phase 2 — Performance & Portability (Week 2)

@@ -80,7 +80,9 @@ public class EnvironmentFingerprintService {
                 available,
                 appCommit(),
                 System.getProperty("java.version", "unknown"),
+                System.getProperty("java.vendor", "unknown"),
                 System.getProperty("os.name", "unknown"),
+                System.getProperty("os.arch", "unknown"),
                 databaseProduct,
                 postgresVersion,
                 postgresMajorVersion,
@@ -98,7 +100,9 @@ public class EnvironmentFingerprintService {
         map.put("available", snapshot.available());
         map.put("appCommit", snapshot.appCommit());
         map.put("javaVersion", snapshot.javaVersion());
+        map.put("javaVendor", snapshot.javaVendor());
         map.put("os", snapshot.os());
+        map.put("osArch", snapshot.osArch());
         map.put("databaseProduct", snapshot.databaseProduct());
         map.put("postgresVersion", snapshot.postgresVersion());
         map.put("postgresMajorVersion", snapshot.postgresMajorVersion());
@@ -129,7 +133,9 @@ public class EnvironmentFingerprintService {
             boolean available,
             String appCommit,
             String javaVersion,
+            String javaVendor,
             String os,
+            String osArch,
             String databaseProduct,
             String postgresVersion,
             int postgresMajorVersion,
