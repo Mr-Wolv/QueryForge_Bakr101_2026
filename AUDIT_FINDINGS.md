@@ -217,7 +217,7 @@
 - [x] SEC-017, SEC-018: Remove weak defaults from Compose (Keycloak admin, PG password)
 - [x] SEC-001, SEC-011: Remove secrets from repo; require env vars / Docker secrets
 - [x] SEC-005: Add authorization to SSE endpoint (`@PreAuthorize`)
-- [ ] SEC-006: Prefer run-scoped artifact endpoint; deprecate global
+- [x] SEC-006: Prefer run-scoped artifact endpoint; deprecate global
 - [ ] SEC-010: Add OWASP Dependency Check + npm audit to CI
 - [ ] REP-001, REP-007: Enforce deterministic seeds in data gen + k6
 - [ ] REP-004: Full environment fingerprint in run manifest
