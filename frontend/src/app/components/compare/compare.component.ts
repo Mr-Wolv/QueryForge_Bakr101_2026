@@ -126,6 +126,42 @@ const LABELS: Record<string, { label: string; group: string; higherIsBetter: boo
       <div class="raw" *ngIf="!result && !error">
         <app-state-card mode="empty" message="Select two runs to compare." />
       </div>
+
+      <section class="history">
+        <h2>Comparison history</h2>
+        <div *ngIf="loadingHistory" class="loading">Loading history…</div>
+        <table *ngIf="!loadingHistory && history.length > 0">
+          <thead>
+            <tr>
+              <th scope="col">Report ID</th>
+              <th scope="col">Left</th>
+              <th scope="col">Right</th>
+              <th scope="col">Compatible</th>
+              <th scope="col">Created at</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let h of history">
+              <td class="mono">{{h.id}}</td>
+              <td class="mono">{{h.leftRunId}}</td>
+              <td class="mono">{{h.rightRunId}}</td>
+              <td>
+                <span [class.pass]="h.verdict.compatible" [class.fail]="!h.verdict.compatible">
+                  {{h.verdict.compatible ? 'Yes' : 'No'}}
+                </span>
+              </td>
+              <td>{{h.createdAt | date:'short'}}</td>
+              <td>
+                <button class="small" (click)="viewComparison(h.id)">View</button>
+                <button class="small" (click)="exportComparison(h.id, 'markdown')">Export MD</button>
+                <button class="small" (click)="exportComparison(h.id, 'html')">Export HTML</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p *ngIf="!loadingHistory && history.length === 0">No comparisons yet.</p>
+      </section>
     </section>
   `,
   styleUrls: ['./compare.component.css']
@@ -136,8 +172,10 @@ export class CompareComponent {
   private cdr = inject(ChangeDetectorRef);
   runs: ExperimentRun[] = [];
   result?: ComparisonResult;
+  history: ComparisonResult[] = [];
   rows: DeltaRow[] = [];
   loading = false;
+  loadingHistory = false;
   error?: string;
   a = '';
   b = '';
@@ -147,6 +185,59 @@ export class CompareComponent {
       next: r => { this.runs = r; this.cdr.markForCheck(); },
       error: () => {
         this.error = 'Run history could not be loaded, so nothing can be compared yet.';
+        this.cdr.markForCheck();
+      }
+    });
+    this.loadHistory();
+  }
+
+  loadHistory() {
+    this.loadingHistory = true;
+    this.api.getComparisons().subscribe({
+      next: (list) => {
+        this.history = list;
+        this.loadingHistory = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.loadingHistory = false;
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  viewComparison(id: string) {
+    this.api.getComparison(id).subscribe({
+      next: (res) => {
+        this.result = {
+          ...res,
+          baseline: res.leftRunId,
+          candidate: res.rightRunId,
+        };
+        this.rows = this.buildRows(res.metricsDelta ?? {});
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.error = 'Could not load this comparison.';
+        this.loading = false;
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  exportComparison(id: string, format: 'markdown' | 'html' = 'markdown') {
+    this.api.exportComparison(id, format).subscribe({
+      next: (blob: Blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${id}.${format}`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      error: () => {
+        this.error = 'Export failed.';
         this.cdr.markForCheck();
       }
     });

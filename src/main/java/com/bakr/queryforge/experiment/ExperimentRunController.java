@@ -14,10 +14,16 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import jakarta.validation.Valid;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
  * Phase 2 run orchestration endpoints.
@@ -103,6 +109,14 @@ public class ExperimentRunController {
         ));
     }
 
+    @PostMapping("/{id}/rerun")
+    public ResponseEntity<ExperimentRun> rerun(@PathVariable String id) {
+        ExperimentRun run = runs.findById(id)
+                .orElseThrow(() -> new com.bakr.queryforge.service.NotFoundException("run not found: " + id));
+        ExperimentRun created = runs.create(run.templateId(), run.parameters(), null);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
     /**
      * Run-scoped parsed plan.  Legacy runs publish a plan artifact whose stored
      * path points at the shared {@code docs/experiments/plans} catalog, while
@@ -134,5 +148,32 @@ public class ExperimentRunController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + path.getFileName() + "\"")
                 .contentType(MediaType.parseMediaType(contentType))
                 .body(resource);
+    }
+
+    @GetMapping(value = "/{id}/artifacts", params = "format=zip")
+    public ResponseEntity<byte[]> artifactsZip(@PathVariable String id) {
+        runs.findById(id).orElseThrow(() -> new com.bakr.queryforge.service.NotFoundException("run not found: " + id));
+        List<RunArtifact> artifacts = runs.artifacts(id);
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+             ZipOutputStream zos = new ZipOutputStream(bos)) {
+            for (RunArtifact a : artifacts) {
+                Optional<Path> resolved = artifactService.resolveForRun(id, a.artifactId());
+                if (resolved.isEmpty()) continue;
+                Path path = resolved.get();
+                String entryName = path.getFileName().toString();
+                ZipEntry entry = new ZipEntry(entryName);
+                zos.putNextEntry(entry);
+                Files.copy(path, zos);
+                zos.closeEntry();
+            }
+            zos.finish();
+            byte[] zipBytes = bos.toByteArray();
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_TYPE, "application/zip")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + id + "-artifacts.zip\"")
+                    .body(zipBytes);
+        } catch (IOException e) {
+            throw new com.bakr.queryforge.service.NotFoundException("could not create artifact archive: " + e.getMessage());
+        }
     }
 }

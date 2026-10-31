@@ -6,14 +6,17 @@ interface PlanNode {
   properties: Record<string, string>;
   children: PlanNode[];
   raw: string;
+  costScore?: number;
 }
+
+const EXPENSIVE_TYPES = new Set(['seq scan', 'index scan', 'bitmap heap scan', 'tid scan']);
 
 @Component({
   selector: 'app-plan-node',
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="node" *ngIf="node" role="treeitem" [attr.aria-expanded]="hasChildren ? expanded : null">
+    <div class="node" *ngIf="node" role="treeitem" [attr.aria-expanded]="hasChildren ? expanded : null" [class]="costClass">
       <button *ngIf="hasChildren; else leafHead" class="head" type="button" (click)="toggle()"
         [attr.aria-label]="(expanded ? 'Collapse ' : 'Expand ') + normalizedType + ' plan node'">
         <span class="caret" [class.expanded]="expanded">&#9654;</span>
@@ -27,6 +30,7 @@ interface PlanNode {
           <span class="metric" title="cost">{{ props['planCostStart'] }}..{{ props['planCostEnd'] }}</span>
           <span class="metric" title="buffers" *ngIf="props['buffers']">{{ props['buffers'] }}</span>
         </span>
+        <span class="cost-badge" [class.cost-medium]="costClass === 'cost-medium'" [class.cost-high]="costClass === 'cost-high'" *ngIf="costClass !== 'cost-none'">{{ costScore | number:'1.0-1' }}</span>
         <span class="unknown-badge" *ngIf="isUnknown && node.type.length">UNKNOWN</span>
       </button>
       <ng-template #leafHead>
@@ -42,6 +46,7 @@ interface PlanNode {
             <span class="metric" title="cost">{{ props['planCostStart'] }}..{{ props['planCostEnd'] }}</span>
             <span class="metric" title="buffers" *ngIf="props['buffers']">{{ props['buffers'] }}</span>
           </span>
+          <span class="cost-badge" [class.cost-medium]="costClass === 'cost-medium'" [class.cost-high]="costClass === 'cost-high'" *ngIf="costClass !== 'cost-none'">{{ costScore | number:'1.0-1' }}</span>
           <span class="unknown-badge" *ngIf="isUnknown && node.type.length">UNKNOWN</span>
         </div>
       </ng-template>
@@ -53,6 +58,11 @@ interface PlanNode {
   `,
   styles: [`
     .node { margin-left: var(--space-4); }
+    .node.cost-medium { background: var(--color-warning-bg); }
+    .node.cost-high { background: var(--color-danger-bg); }
+    .cost-badge { font-size: 10px; font-weight: 700; margin-left: auto; padding: 1px 6px; border-radius: var(--radius-sm); }
+    .cost-badge.cost-medium { background: var(--color-warning); color: #fff; }
+    .cost-badge.cost-high { background: var(--color-danger); color: #fff; }
     .head { display: flex; width: 100%; min-width: 0; align-items: center; gap: var(--space-2); padding: 4px 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--color-text-primary); font: inherit; text-align: left; white-space: normal; cursor: pointer; user-select: none; }
     .head:hover { background: var(--color-accent-subtle); }
     .head:disabled { cursor: default; }
@@ -111,6 +121,29 @@ export class PlanNodeComponent {
 
   get props(): Record<string, string> {
     return this.node?.properties || {};
+  }
+
+  get costScore(): number {
+    if (!this.node) return 0;
+    const costEnd = Number(this.node.properties['plancostend']);
+    const actualEnd = Number(this.node.properties['actualendms']);
+    const rows = Number(this.node.properties['rows']);
+    const isExpensive = EXPENSIVE_TYPES.has(this.node.type.toLowerCase());
+
+    let score = 0;
+    if (!Number.isNaN(costEnd)) score += Math.log10(Math.max(costEnd, 1)) * 10;
+    if (!Number.isNaN(actualEnd)) score += Math.log10(Math.max(actualEnd, 1)) * 5;
+    if (!Number.isNaN(rows) && rows > 10000) score += Math.log10(Math.max(rows / 1000, 1)) * 5;
+    if (isExpensive) score += 15;
+    return score;
+  }
+
+  get costClass(): string {
+    const score = this.costScore;
+    if (score >= 30) return 'cost-high';
+    if (score >= 15) return 'cost-medium';
+    if (score > 0) return 'cost-low';
+    return 'cost-none';
   }
 
   toggle() { this.expanded = !this.expanded; }

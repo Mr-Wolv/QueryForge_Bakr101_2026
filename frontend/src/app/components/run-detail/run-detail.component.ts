@@ -6,8 +6,18 @@ import { ApiService, ExperimentRun, Hint, RunArtifact } from '../../services/api
 import { AuthService } from '../../core/auth/auth.service';
 import { LatencyChartComponent } from '../latency-chart/latency-chart.component';
 import { StateCardComponent } from '../state-card/state-card.component';
+import { ToastService } from '../../core/toast/toast.service';
 
 const TERMINAL_STATES = new Set(['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT']);
+
+interface LogEntry {
+  time: string;
+  level: string;
+  message: string;
+  stream: string;
+}
+
+const LEVEL_RE = /^(DEBUG|INFO|WARN|WARNING|ERROR|FATAL|TRACE)\b/i;
 
 @Component({
   selector: 'app-run-detail',
@@ -21,7 +31,10 @@ const TERMINAL_STATES = new Set(['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT'
     </ng-template>
     <section class="detail" *ngIf="run; else loadState">
       <a class="back" routerLink="/runs">&larr; Run history</a>
-      <h1>{{run.id}}</h1>
+      <div class="run-id-header">
+        <h1>{{run.id}}</h1>
+        <button class="copy" type="button" (click)="copyRunId()" title="Copy run ID">Copy</button>
+      </div>
       <div class="meta">
         <span>Template: {{run.templateId}}</span>
         <span>State: <em>{{displayState}}</em></span>
@@ -34,6 +47,9 @@ const TERMINAL_STATES = new Set(['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT'
       <div class="run-controls">
         <button *ngIf="run.state === 'QUEUED' && auth.canOperate()" class="launch" (click)="start()" [disabled]="starting">
           {{starting ? 'Starting…' : 'Start run'}}
+        </button>
+        <button *ngIf="run.state !== 'QUEUED' && auth.canOperate()" class="launch" (click)="rerun()" [disabled]="starting">
+          {{starting ? 'Rerunning…' : 'Rerun with same params'}}
         </button>
         <button *ngIf="isActive && auth.canOperate()" class="cancel" (click)="cancel()" [disabled]="cancelling">
           {{cancelling ? 'Cancelling…' : 'Cancel run'}}
@@ -48,9 +64,16 @@ const TERMINAL_STATES = new Set(['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT'
           <span class="sse-badge" [class.running]="displayState === 'RUNNING'" [class.succeeded]="displayState === 'SUCCEEDED'" [class.failed]="displayState === 'FAILED'">
             Live: {{ displayState }}
           </span>
+          <input class="log-search" type="search" placeholder="Search logs…" [(ngModel)]="logSearch" />
           <button class="clear" *ngIf="liveLogs.length > 0" (click)="clearLogs()">Clear log</button>
         </div>
-        <pre class="live-log" *ngIf="liveLogs.length > 0" aria-live="polite">{{ liveLogs.join('\n') }}</pre>
+        <div class="log-entries">
+          <div class="log-entry" *ngFor="let e of filteredLogEntries" [class.level]="e.level.toLowerCase()">
+            <span class="log-time">{{ e.time }}</span>
+            <span class="log-level">{{ e.level }}</span>
+            <span class="log-message">{{ e.message }}</span>
+          </div>
+        </div>
       </div>
 
       <h2>Latency percentiles</h2>
@@ -89,6 +112,7 @@ const TERMINAL_STATES = new Set(['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT'
       <div class="actions" *ngIf="run">
         <button class="export" (click)="export('markdown')">Export Markdown</button>
         <button class="export" (click)="export('html')">Export HTML</button>
+        <button class="export" (click)="downloadZip()" *ngIf="run.artifacts.length > 0">Download All (ZIP)</button>
       </div>
 
       <h2>Artifacts</h2>
@@ -123,6 +147,7 @@ export class RunDetailComponent implements OnDestroy {
   readonly auth = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
   private router = inject(Router);
+  private toast = inject(ToastService);
 
   private readonly runId: string;
   run?: ExperimentRun;
@@ -134,7 +159,8 @@ export class RunDetailComponent implements OnDestroy {
   artifactFilter = '';
   filteredArtifacts: ExperimentRun['artifacts'] = [];
   liveState: string | null = null;
-  liveLogs: string[] = [];
+  liveLogs: LogEntry[] = [];
+  logSearch = '';
   private sse?: EventSource;
   private closed = false;
 
@@ -200,8 +226,10 @@ export class RunDetailComponent implements OnDestroy {
       });
       this.sse.addEventListener('log', (ev: MessageEvent) => {
         const text = this.parse(ev)?.text;
+        const stream = this.parse(ev)?.stream ?? 'stdout';
         if (typeof text !== 'string' || text.length === 0) return;
-        this.liveLogs.push(text);
+        const entry = this.parseLog(text, stream);
+        this.liveLogs.push(entry);
         if (this.liveLogs.length > 200) this.liveLogs.shift();
         this.cdr.markForCheck();
       });
@@ -240,6 +268,15 @@ export class RunDetailComponent implements OnDestroy {
     }
   }
 
+  private parseLog(text: string, stream: string): LogEntry {
+    const now = new Date();
+    const time = now.toLocaleTimeString('en-US', { hour12: false });
+    const levelMatch = text.match(LEVEL_RE);
+    const level = levelMatch ? levelMatch[1].toUpperCase() : 'INFO';
+    const message = levelMatch ? text.slice(levelMatch[0].length).trim() : text;
+    return { time, level, message, stream };
+  }
+
   private finishLive() {
     this.closeSse();
     this.refreshRun();
@@ -267,7 +304,6 @@ export class RunDetailComponent implements OnDestroy {
     this.liveLogs = [];
     this.cdr.markForCheck();
   }
-
   start() {
     if (!this.run || this.starting) return;
     this.starting = true;
@@ -324,6 +360,51 @@ export class RunDetailComponent implements OnDestroy {
     });
   }
 
+  copyRunId() {
+    if (!this.run) return;
+    navigator.clipboard.writeText(this.run.id).then(() => {
+      this.toast.show(`Copied run ID ${this.run.id}`, 'success');
+    }, () => {
+      this.toast.show('Failed to copy run ID', 'error');
+    });
+  }
+
+  rerun() {
+    if (!this.run || this.starting) return;
+    this.starting = true;
+    this.actionError = null;
+    this.api.rerunRun(this.run.id).subscribe({
+      next: created => {
+        this.starting = false;
+        this.api.invalidateRuns();
+        this.router.navigate(['/runs', created.id]);
+      },
+      error: err => {
+        this.starting = false;
+        this.actionError = this.describe(err, 'The run could not be rerun.');
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  downloadZip() {
+    if (!this.run) return;
+    this.api.downloadArtifactsZip(this.run.id).subscribe({
+      next: (blob: Blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${this.run.id}-artifacts.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      error: err => {
+        this.actionError = this.describe(err, 'The artifact archive could not be created.');
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
   testInLab() {
     // Create a candidate run that repeats the measured parameters. `labels`
     // only carries the idempotency key, so it must never be used as input.
@@ -359,6 +440,12 @@ export class RunDetailComponent implements OnDestroy {
     if (!this.run) return [];
     const kinds = new Set(this.run.artifacts.map(a => a.kind));
     return Array.from(kinds);
+  }
+
+  get filteredLogEntries() {
+    if (!this.logSearch) return this.liveLogs;
+    const q = this.logSearch.toLowerCase();
+    return this.liveLogs.filter(e => e.message.toLowerCase().includes(q) || e.level.toLowerCase().includes(q));
   }
 
   artifactUrl(a: RunArtifact): string {

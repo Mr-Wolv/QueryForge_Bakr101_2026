@@ -234,15 +234,15 @@
 
 ### Phase 3 — UX Polish (Week 3)
 - [ ] UX-001: Enable Keycloak registration + forgot password + custom theme
-- [ ] UX-025: Add "Rerun with same params" endpoint + button
-- [ ] UX-015: Add column sorting to run history table
-- [ ] UX-016: Add pagination UI to run history
-- [ ] UX-026: Add bulk artifact download (ZIP)
-- [ ] UX-019: Structured live logs with timestamps/levels/search
-- [ ] UX-020: Comparison history + multi-run support
-- [ ] UX-021: Plan cost highlighting + diff mode
-- [ ] UX-018: Add "copy run ID" button with toast feedback
-- [ ] UX-017: Link empty state to `/experiments`
+- [x] UX-025: Add "Rerun with same params" endpoint + button
+- [x] UX-015: Add column sorting to run history table
+- [x] UX-016: Add pagination UI to run history
+- [x] UX-026: Add bulk artifact download (ZIP)
+- [x] UX-019: Structured live logs with timestamps/levels/search
+- [x] UX-020: Comparison history + multi-run support
+- [x] UX-021: Plan cost highlighting + diff mode
+- [x] UX-018: Add "copy run ID" button with toast feedback
+- [x] UX-017: Link empty state to `/experiments`
 
 ### Phase 4 — Maintainability & CI/CD (Week 4)
 - [ ] MAI-001: Split `ExperimentOrchestrator` into 4 focused classes

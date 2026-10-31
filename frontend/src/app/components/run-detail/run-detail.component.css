@@ -9,6 +9,33 @@
       transition: color 150ms ease;
     }
     .back:hover { color: var(--text, #111); }
+    .run-id-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3, 12px);
+      margin-bottom: var(--space-5, 24px);
+      flex-wrap: wrap;
+    }
+    .run-id-header h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+    .run-id-header .copy {
+      padding: var(--space-2, 8px) var(--space-4, 1rem);
+      background: var(--surface, #fff);
+      color: var(--text, #111);
+      border: 1px solid var(--border, #e5e5e5);
+      border-radius: var(--radius-md, 4px);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: var(--font-sans, inherit);
+      transition: all 150ms ease;
+    }
+    .run-id-header .copy:hover {
+      border-color: var(--accent, #111);
+      color: var(--accent, #111);
+    }
     h1 {
       font-size: 32px;
       font-weight: 200;
@@ -330,4 +357,35 @@
       overflow: auto;
       white-space: pre-wrap;
       word-break: break-word;
+    }
+    .log-entries {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      max-height: 320px;
+      overflow: auto;
+      background: #0f1115;
+      border-radius: var(--radius-lg, 8px);
+      padding: var(--space-2, 8px);
+    }
+    .log-entry {
+      display: flex;
+      gap: var(--space-2, 8px);
+      font-family: var(--font-mono, ui-monospace, monospace);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+    .log-time { color: #6b7280; min-width: 60px; }
+    .log-level { min-width: 56px; font-weight: 600; text-transform: uppercase; }
+    .log-level.info { color: #3b82f6; }
+    .log-level.warn, .log-level.warning { color: #f59e0b; }
+    .log-level.error, .log-level.fatal { color: #ef4444; }
+    .log-level.debug { color: #a1a1aa; }
+    .log-message { color: #d8dee9; }
+    .log-search {
+      padding: var(--space-1, 4px) var(--space-3, 12px);
+      border: 1px solid var(--border, #e5e5e5);
+      border-radius: var(--radius-md, 4px);
+      font-size: 12px;
+      background: var(--surface, #fff);
     }

@@ -8,7 +8,10 @@ interface PlanNode {
   properties: Record<string, string>;
   children: PlanNode[];
   raw: string;
+  costScore?: number;
 }
+
+const EXPENSIVE_TYPES = new Set(['seq scan', 'index scan', 'bitmap heap scan', 'tid scan']);
 
 @Component({
   selector: 'app-plan-explorer',
@@ -79,12 +82,11 @@ export class PlanExplorerComponent implements OnChanges {
     this.api.getParsedPlan(artifactId, this.runId || undefined).subscribe({
       next: (data: PlanNode) => {
         this.root = data;
+        this.computeCostScores(data);
         this.raw = this.serialize(data);
         this.unknownTypes = this.collectUnknownTypes(data);
         this.nodeCount = this.countNodes(data);
         this.loaded = true;
-        // The app runs without zone.js, so async callbacks must schedule their own
-        // change detection or the tree never renders.
         this.cdr.markForCheck();
       },
       error: () => {
@@ -135,5 +137,29 @@ export class PlanExplorerComponent implements OnChanges {
     let count = 1;
     for (const child of node.children) count += this.countNodes(child);
     return count;
+  }
+
+  private computeCostScores(node: PlanNode): void {
+    const costEnd = Number(node.properties['plancostend']);
+    const actualEnd = Number(node.properties['actualendms']);
+    const rows = Number(node.properties['rows']);
+    const isExpensive = EXPENSIVE_TYPES.has(node.type.toLowerCase());
+
+    let score = 0;
+    if (!Number.isNaN(costEnd)) score += Math.log10(Math.max(costEnd, 1)) * 10;
+    if (!Number.isNaN(actualEnd)) score += Math.log10(Math.max(actualEnd, 1)) * 5;
+    if (!Number.isNaN(rows) && rows > 10000) score += Math.log10(Math.max(rows / 1000, 1)) * 5;
+    if (isExpensive) score += 15;
+
+    node.costScore = score;
+    for (const child of node.children) this.computeCostScores(child);
+  }
+
+  costClass(node: PlanNode): string {
+    const score = node.costScore ?? 0;
+    if (score >= 30) return 'cost-high';
+    if (score >= 15) return 'cost-medium';
+    if (score > 0) return 'cost-low';
+    return 'cost-none';
   }
 }

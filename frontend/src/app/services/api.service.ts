@@ -178,11 +178,8 @@ export class ApiService {
     return this.http.post<void>(`${this.base}/auth/logout`, {});
   }
 
-  getRuns(): Observable<ExperimentRun[]> {
-    return this.cached<ExperimentRun[]>('runs', () =>
-      this.http.get<PageResponse<ExperimentRun>>(`${this.base}/runs?page=0&size=100`)
-        .pipe(map(page => page.content))
-    );
+  getRuns(page: number = 0, size: number = 20): Observable<PageResponse<ExperimentRun>> {
+    return this.http.get<PageResponse<ExperimentRun>>(`${this.base}/runs?page=${page}&size=${size}`);
   }
 
   getRun(id: string): Observable<ExperimentRun> {
@@ -228,8 +225,30 @@ export class ApiService {
     );
   }
 
+  rerunRun(id: string): Observable<ExperimentRun> {
+    return this.http.post<ExperimentRun>(`${this.base}/runs/${id}/rerun`, {}).pipe(
+      tap({ next: () => this.invalidateRuns() })
+    );
+  }
+
+  downloadArtifactsZip(id: string): Observable<Blob> {
+    return this.http.get(`${this.base}/runs/${id}/artifacts?format=zip`, { responseType: 'blob' });
+  }
+
   compare(leftRunId: string, rightRunId: string): Observable<ComparisonResult> {
     return this.http.post<ComparisonResult>(`${this.base}/comparisons`, { leftRunId, rightRunId });
+  }
+
+  getComparisons(): Observable<ComparisonResult[]> {
+    return this.http.get<ComparisonResult[]>(`${this.base}/comparisons`);
+  }
+
+  getComparison(id: string): Observable<ComparisonResult> {
+    return this.http.get<ComparisonResult>(`${this.base}/comparisons/${id}`);
+  }
+
+  exportComparison(id: string, format: 'markdown' | 'html' = 'markdown'): Observable<Blob> {
+    return this.http.get(`${this.base}/comparisons/${id}/export?format=${format}`, { responseType: 'blob' });
   }
 
   getHints(id: string): Observable<Hint[]> {

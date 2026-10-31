@@ -32,7 +32,7 @@ describe('RunsComponent', () => {
   });
 
   it('renders an empty state when the history is genuinely empty', () => {
-    const api = { getRuns: vi.fn(() => of([])) };
+    const api = { getRuns: vi.fn(() => of({ content: [], page: 0, size: 20, totalElements: 0, totalPages: 0, hasNext: false })) };
     TestBed.configureTestingModule({
       imports: [RunsComponent],
       providers: [

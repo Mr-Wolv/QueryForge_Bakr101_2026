@@ -43,23 +43,34 @@ import { SkeletonCardComponent } from '../skeleton-card/skeleton-card.component'
         </label>
       </div>
       <div class="list" *ngIf="!loadError && filteredRuns.length > 0; else empty">
-        <div class="list-head" aria-hidden="true">
-          <span>Run</span>
-          <span>Template</span>
-          <span>State</span>
-          <span class="num">p95 latency</span>
-          <span class="num">Throughput</span>
+        <div class="list-head" role="row">
+          <button class="sort" type="button" (click)="sortByColumn('id')">Run{{sortIndicator('id')}}</button>
+          <button class="sort" type="button" (click)="sortByColumn('templateId')">Template{{sortIndicator('templateId')}}</button>
+          <button class="sort" type="button" (click)="sortByColumn('state')">State{{sortIndicator('state')}}</button>
+          <button class="sort" type="button" (click)="sortByColumn('startedAt')">Started{{sortIndicator('startedAt')}}</button>
+          <button class="sort num" type="button" (click)="sortByColumn('durationMs')">Duration{{sortIndicator('durationMs')}}</button>
         </div>
         <a class="row" *ngFor="let r of filteredRuns" [routerLink]="['/runs', r.id]">
           <span class="id">{{r.id}}</span>
           <span class="template">{{r.templateId}}</span>
           <span class="state" [class]="stateClass(r.state)">{{r.state}}</span>
-          <span class="p95">{{p95(r)}}</span>
-          <span class="rps">{{rps(r)}}</span>
+          <span class="started">{{r.startedAt | date:'short'}}</span>
+          <span class="num">{{r.durationMs | number}} ms</span>
         </a>
       </div>
+
+      <div class="pagination" *ngIf="!loading && !loadError && totalPages > 1" role="navigation" aria-label="Run history pagination">
+        <button type="button" (click)="goToPage(currentPage - 1)" [disabled]="currentPage === 0">Prev</button>
+        <span class="page-info">Page {{currentPage + 1}} of {{totalPages}}</span>
+        <button type="button" (click)="goToPage(currentPage + 1)" [disabled]="currentPage >= totalPages - 1">Next</button>
+      </div>
+
       <ng-template #empty>
-        <app-state-card *ngIf="!loadError" mode="empty" message="No runs recorded yet." />
+        <app-state-card *ngIf="!loadError" mode="empty" message="No runs recorded yet.">
+          <p class="empty-action">
+            <a routerLink="/experiments">Create your first experiment</a>
+          </p>
+        </app-state-card>
       </ng-template>
     </section>
   `,
@@ -71,10 +82,15 @@ export class RunsComponent {
   private route = inject(ActivatedRoute);
   runs: ExperimentRun[] = [];
   filteredRuns: ExperimentRun[] = [];
+  totalPages = 0;
+  currentPage = 0;
+  pageSize = 20;
   templateFilter = '';
   stateFilter = '';
   dateFrom = '';
   dateTo = '';
+  sortBy = 'startedAt';
+  sortDir: 'asc' | 'desc' = 'desc';
   loading = true;
   loadError: string | null = null;
 
@@ -97,9 +113,10 @@ export class RunsComponent {
   reload() {
     this.loading = true;
     this.loadError = null;
-    this.api.getRuns().subscribe({
-      next: r => {
-        this.runs = r;
+    this.api.getRuns(this.currentPage, this.pageSize).subscribe({
+      next: page => {
+        this.runs = page.content;
+        this.totalPages = page.totalPages;
         this.loading = false;
         this.applyFilter();
         this.cdr.markForCheck();
@@ -116,18 +133,14 @@ export class RunsComponent {
     return 'state ' + state.toLowerCase();
   }
 
-  p95(run: ExperimentRun): string {
-    const value = run.metrics?.iterationPercentiles?.['p95'];
-    return value == null ? '—' : `${Math.round(Number(value)).toLocaleString('en-US')} ms`;
-  }
-
-  rps(run: ExperimentRun): string {
-    const value = run.metrics?.rps;
-    return value == null || value === 0 ? '—' : `${Number(value).toFixed(2)} RPS`;
+  goToPage(page: number) {
+    if (page < 0 || page >= this.totalPages) return;
+    this.currentPage = page;
+    this.reload();
   }
 
   applyFilter() {
-    this.filteredRuns = this.runs.filter(r => {
+    let result = this.runs.filter(r => {
       if (this.templateFilter && r.templateId !== this.templateFilter) return false;
       if (this.stateFilter && r.state !== this.stateFilter) return false;
       if (this.dateFrom && r.startedAt) {
@@ -140,5 +153,29 @@ export class RunsComponent {
       }
       return true;
     });
+    result.sort((a, b) => {
+      const av = a[this.sortBy as keyof ExperimentRun];
+      const bv = b[this.sortBy as keyof ExperimentRun];
+      let cmp = 0;
+      if (av < bv) cmp = -1;
+      else if (av > bv) cmp = 1;
+      return this.sortDir === 'asc' ? cmp : -cmp;
+    });
+    this.filteredRuns = result;
+  }
+
+  sortByColumn(column: string) {
+    if (this.sortBy === column) {
+      this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.sortBy = column;
+      this.sortDir = 'asc';
+    }
+    this.applyFilter();
+  }
+
+  sortIndicator(column: string): string {
+    if (this.sortBy !== column) return '';
+    return this.sortDir === 'asc' ? ' ▲' : ' ▼';
   }
 }
