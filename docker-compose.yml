@@ -76,13 +76,16 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${QF_KEYCLOAK_ADMIN:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${QF_KEYCLOAK_ADMIN_PASSWORD:-admin-local-only}
       KC_PROXY_HEADERS: xforwarded
-      KC_HTTP_RELATIVE_PATH: /
+      # Keycloak is exposed browser-side under the /id/ path (same-origin with the SPA).
+      # Tell it its relative path so every browser-facing URL keeps the /id/ prefix;
+      # otherwise the login form posts to /realms/... and nginx returns 405.
+      KC_HTTP_RELATIVE_PATH: /id/
       KC_HEALTH_ENABLED: "true"
     volumes:
       - ./docker/keycloak/queryforge-realm.json:/opt/keycloak/data/import/queryforge-realm.json:ro
       - keycloakdata:/opt/keycloak/data
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'HEAD /health/ready HTTP/1.0\\r\\n\\r\\n' >&3; grep -q '200' <&3"]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'HEAD /id/health/ready HTTP/1.0\\r\\n\\r\\n' >&3; grep -q '200' <&3"]
       interval: 5s
       timeout: 3s
       retries: 30
