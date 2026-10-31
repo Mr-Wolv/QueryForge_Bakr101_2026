@@ -3,6 +3,16 @@ import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.4/index.js';
 
 export const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 
+// Deterministic RNG support: use __ENV.SEED (default 42) for reproducible runs
+// Implements a simple xorshift32 PRNG for consistent results across runs.
+let rngState = parseInt(__ENV.SEED || '42', 10) || 42;
+function seededRandom() {
+  rngState ^= rngState << 13;
+  rngState ^= rngState >>> 17;
+  rngState ^= rngState << 5;
+  return (rngState >>> 0) / 0xffffffff;
+}
+
 const jsonParams = {
   headers: {
     Accept: 'application/json',
@@ -22,6 +32,11 @@ export function getJson(url, tags = {}) {
 export function filterParams() {
   const category = (__VU % 5) + 1; // VU id cycles the category
   return `category=${category}&status=ACTIVE&minPrice=100&maxPrice=500`;
+}
+
+// Seeded random page selection for reproducible runs
+export function seededPage(maxPages) {
+  return Math.floor(seededRandom() * maxPages);
 }
 
 // Writes human summary to stdout and full metrics JSON to SUMMARY_PATH when the

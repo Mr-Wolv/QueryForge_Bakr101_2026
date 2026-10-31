@@ -1,7 +1,7 @@
 import { check, sleep } from 'k6';
 import { Trend } from 'k6/metrics';
 import encoding from 'k6/encoding';
-import { BASE_URL, getJson, filterParams, PAGE_SIZE, handleSummaryWith } from './common.js';
+import { BASE_URL, getJson, filterParams, PAGE_SIZE, handleSummaryWith, seededRandom } from './common.js';
 
 /**
  * QF-002 workload: OFFSET pagination vs KEYSET pagination at controlled depths.
@@ -63,7 +63,7 @@ export function setup() {
 }
 
 export default function (data) {
-  const depth = DEPTHS[Math.floor(Math.random() * DEPTHS.length)];
+  const depth = DEPTHS[Math.floor(seededRandom() * DEPTHS.length)];
   let url;
   let trend;
 

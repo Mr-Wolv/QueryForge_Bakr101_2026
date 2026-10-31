@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Deterministic product dataset generator for QueryForge.
 
-seed=42. Same N => same logical dataset on every machine/run (per-row RNG).
+Default seed=42. Same N => same logical dataset on every machine/run (per-row RNG).
 
 Default output: benchmark/seed/products_seed42.csv (with header, COPY-ready via load-data.sh).
 Use --csv FILE PATH to write raw rows (no header) to a different path.
+Use --seed INT to override the default seed (default: 42).
 """
 import argparse
 import csv
@@ -13,7 +14,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-SEED = 42
+DEFAULT_SEED = 42
 N_CATEGORIES = 5
 STATUS_WEIGHTS = [("ACTIVE", 55), ("INACTIVE", 30), ("DISCONTINUED", 15)]
 BASE_TS = datetime(2024, 1, 1, tzinfo=timezone.utc)
@@ -24,8 +25,8 @@ def row_rng(seed: int, i: int) -> random.Random:
     return random.Random(f"{seed}:{i}")
 
 
-def gen_row(i: int) -> tuple:
-    r = row_rng(SEED, i)
+def gen_row(i: int, seed: int) -> tuple:
+    r = row_rng(seed, i)
     category = r.randrange(1, N_CATEGORIES + 1)
     price = r.randint(500, 50099) / 100.0          # 5.00 .. 500.99
     stock = r.randint(0, 1000)
@@ -41,6 +42,8 @@ def main() -> int:
     ap.add_argument("rows", nargs="?", type=int, default=10_000)
     ap.add_argument("--csv", dest="csv_path", default="benchmark/seed/products_seed42.csv",
                     help="output CSV path (with header)")
+    ap.add_argument("--seed", type=int, default=DEFAULT_SEED,
+                    help=f"RNG seed (default: {DEFAULT_SEED})")
     args = ap.parse_args()
 
     if args.rows < 1:
@@ -54,9 +57,9 @@ def main() -> int:
         w.writerow(["id", "sku", "name", "category_id", "price", "stock_quantity",
                     "status", "created_at", "updated_at"])
         for i in range(1, args.rows + 1):
-            w.writerow(gen_row(i))
+            w.writerow(gen_row(i, args.seed))
 
-    print(f"Generated {args.rows} rows (seed={SEED}) -> {output_path}")
+    print(f"Generated {args.rows} rows (seed={args.seed}) -> {output_path}")
     return 0
 
 

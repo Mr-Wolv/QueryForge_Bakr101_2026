@@ -1,5 +1,5 @@
 import { check } from 'k6';
-import { BASE_URL, getJson, handleSummaryWith } from './common.js';
+import { BASE_URL, getJson, handleSummaryWith, seededRandom } from './common.js';
 
 /**
  * Workload A — point lookup: GET /api/products/{id}.
@@ -24,7 +24,7 @@ export const options = {
 const MAX_ID = Number(__ENV.MAX_ID || 1000000);
 
 export default function () {
-  const id = 1 + Math.floor(Math.random() * MAX_ID);
+  const id = 1 + Math.floor(seededRandom() * MAX_ID);
   const res = getJson(`${BASE_URL}/api/products/${id}`, { name: 'GET /api/products/{id}' });
   check(res, {
     'status is 200 or 404': (r) => r.status === 200 || r.status === 404,

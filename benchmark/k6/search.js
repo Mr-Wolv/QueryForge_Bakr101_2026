@@ -1,5 +1,5 @@
 import { check } from 'k6';
-import { BASE_URL, getJson, filterParams, PAGE_SIZE, handleSummaryWith } from './common.js';
+import { BASE_URL, getJson, filterParams, PAGE_SIZE, handleSummaryWith, seededPage } from './common.js';
 
 /**
  * QF-001 workload: filtered product search (Workload B).
@@ -26,7 +26,7 @@ export const options = {
 };
 
 export default function () {
-  const page = Math.floor(Math.random() * 4); // pages 0..3 within the hot set
+  const page = seededPage(4); // pages 0..3 within the hot set
   const res = getJson(
     `${BASE_URL}/api/products?${filterParams()}&sort=createdAt&dir=desc&page=${page}&size=${PAGE_SIZE}`,
     { name: 'GET /api/products [filtered]' }
