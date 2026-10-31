@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+import AxeBuilder from '@axe-core/playwright';
+
 test.describe('NFR-006 accessibility basics', () => {
   test('keyboard navigation reaches all interactive elements on catalog', async ({ page }) => {
     await page.goto('/experiments');
@@ -52,5 +54,15 @@ test.describe('NFR-006 accessibility basics', () => {
     });
     
     expect(selectsWithoutLabel).toBe(0);
+  });
+
+  test('axe-core accessibility audit has no violations on overview', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForTimeout(1000);
+
+    const accessibilityScanResults = await new AxeBuilder({ page })
+      .analyze();
+
+    expect(accessibilityScanResults.violations).toEqual([]);
   });
 });

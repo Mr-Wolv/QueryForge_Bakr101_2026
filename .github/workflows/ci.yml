@@ -113,6 +113,13 @@ jobs:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:4200
         run: npm run e2e:ci
 
+      - name: Accessibility audit (axe-core)
+        working-directory: frontend
+        env:
+          CI: true
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:4200
+        run: npx playwright test e2e/a11y.spec.ts
+
       - name: Stop production frontend test server
         if: always()
         run: docker stop queryforge-frontend-ci || true
