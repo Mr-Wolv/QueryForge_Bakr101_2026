@@ -8,6 +8,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -64,6 +65,7 @@ public class ExperimentRunController {
     }
 
     @GetMapping("/{id}/events")
+    @PreAuthorize("hasRole('OPERATOR')")
     public SseEmitter events(@PathVariable String id) {
         ExperimentRun run = runs.findById(id)
                 .orElseThrow(() -> new com.bakr.queryforge.service.NotFoundException("run not found: " + id));
