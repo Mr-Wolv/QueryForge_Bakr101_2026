@@ -88,14 +88,25 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${QF_KEYCLOAK_ADMIN:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${QF_KEYCLOAK_ADMIN_PASSWORD}
       KC_PROXY_HEADERS: xforwarded
-      # Keycloak is exposed browser-side under the /id/ path (same-origin with the SPA).
-      # Tell it its relative path so every browser-facing URL keeps the /id/ prefix;
-      # otherwise the login form posts to /realms/... and nginx returns 405.
       KC_HTTP_RELATIVE_PATH: /id/
       KC_HEALTH_ENABLED: "true"
+      # SMTP for registration + password-reset email (mailpit capture, port 25).
+      # Start with --profile monitoring to run mailpit alongside keycloak.
+      KC_SMTP_HOST: mailpit
+      KC_SMTP_PORT: 25
+      KC_SMTP_FROM: queryforge@localhost
+      KC_SMTP_AUTH: none
+      KC_SMTP_STARTTLS: none
+      KC_SMTP_SSL: "false"
+      # Custom branded theme.
+      JAVA_OPTS_APPEND: "-Dkeycloak.theme=queryforge"
     volumes:
       - ./docker/keycloak/queryforge-realm.json:/opt/keycloak/data/import/queryforge-realm.json:ro
+      - ./docker/keycloak/themes:/opt/keycloak/theme:ro
       - keycloakdata:/opt/keycloak/data
+    depends_on:
+      mailpit:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'HEAD /id/health/ready HTTP/1.0\\r\\n\\r\\n' >&3; grep -q '200' <&3"]
       interval: 5s

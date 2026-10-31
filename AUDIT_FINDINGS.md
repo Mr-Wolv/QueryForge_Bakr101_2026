@@ -233,7 +233,7 @@
 - [x] POR-012: Create `.env.example` with all `QF_*` vars
 
 ### Phase 3 — UX Polish (Week 3)
-- [ ] UX-001: Enable Keycloak registration + forgot password + custom theme
+- [x] UX-001: Enable Keycloak registration + forgot password + custom theme
 - [x] UX-025: Add "Rerun with same params" endpoint + button
 - [x] UX-015: Add column sorting to run history table
 - [x] UX-016: Add pagination UI to run history
