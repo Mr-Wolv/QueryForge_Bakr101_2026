@@ -8,10 +8,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.NoHandlerFoundException;
@@ -77,6 +82,55 @@ public class ApiExceptionHandler {
     @ExceptionHandler({IllegalArgumentException.class, MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ProblemDetail> badRequest(Exception e, HttpServletRequest request) {
         return build(HttpStatus.BAD_REQUEST, VALIDATION_TYPE, "Bad Request", e.getMessage(), null, request);
+    }
+
+    /**
+     * A body that cannot be deserialized (malformed JSON, or a field of the wrong
+     * JSON type) is a client error. Without this it reached the catch-all and was
+     * reported as a 500, which hid the real cause from API consumers.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ProblemDetail> unreadable(HttpMessageNotReadableException e,
+                                                    HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, VALIDATION_TYPE, "Malformed Request Body",
+                "The request body is not valid JSON for this endpoint", null, request);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ProblemDetail> missingParameter(MissingServletRequestParameterException e,
+                                                          HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, VALIDATION_TYPE, "Bad Request",
+                "Missing required parameter: " + e.getParameterName(), null, request);
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ProblemDetail> methodValidation(HandlerMethodValidationException e,
+                                                          HttpServletRequest request) {
+        Map<String, List<String>> fieldErrors = new LinkedHashMap<>();
+        e.getParameterValidationResults().forEach(result ->
+                result.getResolvableErrors().forEach(error -> {
+                    String name = result.getMethodParameter().getParameterName();
+                    fieldErrors.computeIfAbsent(name == null ? "request" : name, k -> new ArrayList<>())
+                            .add(error.getDefaultMessage());
+                }));
+        return build(HttpStatus.BAD_REQUEST, VALIDATION_TYPE, "Validation Failed",
+                "Invalid request parameters", fieldErrors, request);
+    }
+
+    /** Wrong Content-Type is a 415, not a server error. */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ProblemDetail> unsupportedMediaType(HttpMediaTypeNotSupportedException e,
+                                                              HttpServletRequest request) {
+        return build(HttpStatus.UNSUPPORTED_MEDIA_TYPE, VALIDATION_TYPE, "Unsupported Media Type",
+                "Content-Type " + e.getContentType() + " is not supported by this endpoint", null, request);
+    }
+
+    /** A method that exists under a different HTTP verb is a 405, not a server error. */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ProblemDetail> methodNotAllowed(HttpRequestMethodNotSupportedException e,
+                                                          HttpServletRequest request) {
+        return build(HttpStatus.METHOD_NOT_ALLOWED, VALIDATION_TYPE, "Method Not Allowed",
+                e.getMessage(), null, request);
     }
 
     @ExceptionHandler(ResponseStatusException.class)

@@ -1,5 +1,6 @@
 package com.bakr.queryforge.experiment.runner;
 
+import com.bakr.queryforge.config.InternalRunnerToken;
 import com.bakr.queryforge.experiment.ExperimentTemplate;
 import org.springframework.stereotype.Component;
 
@@ -25,6 +26,12 @@ public class K6RunnerAdapter implements RunnerAdapter {
     private static final String K6_BIN = System.getenv("K6_BIN");
     private static final String K6_PATH = System.getenv("K6_PATH");
     public static final String SUMMARY_FILE = "k6-summary.json";
+
+    private final InternalRunnerToken runnerToken;
+
+    public K6RunnerAdapter(InternalRunnerToken runnerToken) {
+        this.runnerToken = runnerToken;
+    }
 
     @Override
     public String name() {
@@ -54,7 +61,14 @@ public class K6RunnerAdapter implements RunnerAdapter {
         // Deterministic summary location owned by the run directory.
         cmd.add("-e");
         cmd.add("SUMMARY_PATH=" + workDir.resolve(SUMMARY_FILE).toAbsolutePath());
-        for (Map.Entry<String, String> e : parameters.entrySet()) {
+        // k6 runs in the same container as the API. Under the authenticated
+        // profiles it needs the process-local runner credential, or every
+        // product request would be rejected with 401.
+        cmd.add("-e");
+        cmd.add("BASE_URL=http://127.0.0.1:8080");
+        cmd.add("-e");
+        cmd.add("QF_INTERNAL_TOKEN=" + runnerToken.value());
+        for (Map.Entry<String, String> e : k6Environment(template, parameters).entrySet()) {
             cmd.add("-e");
             cmd.add(e.getKey() + "=" + e.getValue());
         }
@@ -90,6 +104,37 @@ public class K6RunnerAdapter implements RunnerAdapter {
         return null;
     }
 
+    /**
+     * Translate validated API parameters into k6 environment values.
+     *
+     * <p>The API contract expresses durations in whole seconds (the template
+     * declares {@code type=duration, unit=seconds}). k6 reads a bare number as
+     * milliseconds, so {@code DUR=10} silently became 10ms and k6 rejected the
+     * scenario ("duration must be at least 1s"). Append the unit for bare
+     * numbers while leaving explicit k6 durations ({@code 60s}, {@code 2m})
+     * untouched.
+     */
+    static Map<String, String> k6Environment(ExperimentTemplate template,
+                                             Map<String, String> parameters) {
+        Map<String, String> fields = new java.util.HashMap<>();
+        if (template != null && template.parameters() != null) {
+            for (ExperimentTemplate.ParameterField field : template.parameters()) {
+                fields.put(field.name(), field.type());
+            }
+        }
+        Map<String, String> env = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : parameters.entrySet()) {
+            String value = entry.getValue();
+            if ("duration".equals(fields.get(entry.getKey()))
+                    && value != null
+                    && value.matches("\\d+")) {
+                value = value + "s";
+            }
+            env.put(entry.getKey(), value);
+        }
+        return env;
+    }
+
     private String resolveK6Binary() throws IOException {
         if (K6_BIN != null && !K6_BIN.isBlank()) return absoluteIfPossible(K6_BIN);
         if (K6_PATH != null && !K6_PATH.isBlank()) return absoluteIfPossible(K6_PATH);
@@ -109,18 +154,25 @@ public class K6RunnerAdapter implements RunnerAdapter {
         return System.getProperty("os.name").toLowerCase().contains("win");
     }
 
-    private static void drain(java.io.InputStream in, Path out, long cap) {
+    static void drain(java.io.InputStream in, Path out, long cap) {
         byte[] buf = new byte[8192];
         long written = 0;
+        boolean truncated = false;
         try (java.io.OutputStream os = Files.newOutputStream(out,
                 java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.TRUNCATE_EXISTING)) {
             int n;
-            while ((n = in.read(buf)) != -1 && written < cap) {
-                int toWrite = (int) Math.min(n, cap - written);
-                os.write(buf, 0, toWrite);
-                written += toWrite;
+            // Keep consuming the stream even past the cap. Stopping early leaves the
+            // child blocked on a full pipe, which can hang the run until its timeout.
+            while ((n = in.read(buf)) != -1) {
+                if (written < cap) {
+                    int toWrite = (int) Math.min(n, cap - written);
+                    os.write(buf, 0, toWrite);
+                    written += toWrite;
+                } else {
+                    truncated = true;
+                }
             }
-            if (written >= cap) {
+            if (truncated) {
                 os.write("\n[output truncated at 1 MiB]\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
             }
         } catch (IOException ignored) {

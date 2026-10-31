@@ -20,11 +20,13 @@ interface PlanNode {
         <button class="btn" (click)="toggleView()">
           {{ showRaw ? 'Tree' : 'Raw' }}
         </button>
-        <button class="btn" (click)="copyRaw()">Copy</button>
+        <button class="btn" (click)="copyRaw()" [disabled]="hasError">Copy</button>
         <span class="meta">{{ nodeCount }} nodes</span>
       </div>
 
-      <div *ngIf="!showRaw" class="tree" role="tree" aria-label="Query execution plan">
+      <p class="error" *ngIf="hasError" role="alert">{{ errorMessage }}</p>
+
+      <div *ngIf="!showRaw && !hasError" class="tree" role="tree" aria-label="Query execution plan">
         <app-plan-node
           *ngFor="let node of root.children"
           [node]="node"
@@ -33,15 +35,17 @@ interface PlanNode {
         </app-plan-node>
       </div>
 
-      <pre *ngIf="showRaw" class="raw">{{ raw }}</pre>
+      <pre *ngIf="showRaw && !hasError" class="raw">{{ raw }}</pre>
     </section>
   `,
   styles: [`
     .plan-explorer { border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
     .toolbar { display: flex; gap: var(--space-2); padding: var(--space-3); border-bottom: 1px solid var(--color-border); background: var(--color-surface-elevated); align-items: center; }
     .btn { font: inherit; font-size: 13px; padding: 6px 12px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-primary); border-radius: var(--radius-sm); cursor: pointer; }
-    .btn:hover { background: var(--color-accent-subtle); }
+    .btn:hover:not(:disabled) { background: var(--color-accent-subtle); }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
     .meta { margin-left: auto; font-size: 12px; color: var(--color-text-muted); }
+    .error { margin: 0; padding: var(--space-4); color: var(--color-danger, #b42318); }
     .tree { padding: var(--space-4); overflow-x: auto; }
     .raw { margin: 0; padding: var(--space-4); background: var(--color-surface); color: var(--color-text-primary); font-size: 13px; line-height: 1.6; overflow-x: auto; max-height: 600px; overflow-y: auto; white-space: pre; }
   `]
@@ -56,6 +60,8 @@ export class PlanExplorerComponent implements OnChanges {
   root: PlanNode = { type: 'root', properties: {}, children: [], raw: '' };
   unknownTypes = new Set<string>();
   nodeCount = 0;
+  hasError = false;
+  errorMessage = '';
 
   private api = inject(ApiService);
   private cdr = inject(ChangeDetectorRef);
@@ -68,7 +74,9 @@ export class PlanExplorerComponent implements OnChanges {
 
   private loadPlan(artifactId: string) {
     this.loaded = false;
-    this.api.getParsedPlan(artifactId).subscribe({
+    this.hasError = false;
+    this.errorMessage = '';
+    this.api.getParsedPlan(artifactId, this.runId || undefined).subscribe({
       next: (data: PlanNode) => {
         this.root = data;
         this.raw = this.serialize(data);
@@ -80,7 +88,11 @@ export class PlanExplorerComponent implements OnChanges {
         this.cdr.markForCheck();
       },
       error: () => {
-        this.root = { type: 'error', properties: { error: 'failed to load plan' }, children: [], raw: '' };
+        this.hasError = true;
+        this.errorMessage = `The explain plan "${artifactId}" could not be loaded.`;
+        this.root = { type: 'root', properties: {}, children: [], raw: '' };
+        this.unknownTypes = new Set<string>();
+        this.nodeCount = 0;
         this.loaded = true;
         this.cdr.markForCheck();
       }
@@ -88,7 +100,7 @@ export class PlanExplorerComponent implements OnChanges {
   }
 
   toggleView() { this.showRaw = !this.showRaw; }
-  copyRaw() { navigator.clipboard.writeText(this.raw); }
+  copyRaw() { if (!this.hasError) void navigator.clipboard.writeText(this.raw); }
 
   private serialize(node: PlanNode): string {
     const lines: string[] = [];

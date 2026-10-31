@@ -133,3 +133,28 @@
         min-width: 100%;
       }
     }
+
+    .error-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3, 12px);
+      padding: var(--space-4, 1rem) var(--space-5, 24px);
+      margin-bottom: var(--space-4, 1rem);
+      border: 1px solid var(--color-danger, #b33a2e);
+      border-radius: var(--radius-lg, 8px);
+      background: var(--color-danger-bg, #fdf0ee);
+      color: var(--color-danger, #b33a2e);
+      font-size: 14px;
+    }
+    .error-banner .retry {
+      flex: none;
+      padding: var(--space-2, 8px) var(--space-4, 1rem);
+      font: inherit;
+      font-size: 13px;
+      border: 1px solid currentColor;
+      border-radius: var(--radius-md, 4px);
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+    }

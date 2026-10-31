@@ -2,6 +2,7 @@ package com.bakr.queryforge.experiment;
 
 import com.bakr.queryforge.artifact.ArtifactService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ExperimentRunControllerUnitTest {
 
     private final ExperimentRunService runs = Mockito.mock(ExperimentRunService.class);
-    private final ArtifactService artifactService = new ArtifactService();
+    private final ArtifactService artifactService = Mockito.mock(ArtifactService.class);
     private final ExperimentRunController controller =
             new ExperimentRunController(runs, artifactService, new RunEventBus());
 
@@ -88,6 +89,35 @@ class ExperimentRunControllerUnitTest {
 
         assertThatThrownBy(() -> controller.cancel("run-1"))
                 .isInstanceOf(RunConflictException.class);
+    }
+
+    @Test
+    void runScopedPlanResolvesArtifactInsideTheRun(@TempDir java.nio.file.Path temp) throws Exception {
+        java.nio.file.Path plan = temp.resolve("explain-plan.txt");
+        java.nio.file.Files.writeString(plan, """
+                Nested Loop  (cost=0.00..1.00 rows=1 width=8)
+                  ->  Seq Scan on products  (cost=0.00..0.50 rows=1 width=8)
+                """);
+        Mockito.when(runs.findById("run-1")).thenReturn(Optional.of(run("run-1", "SUCCEEDED")));
+        Mockito.when(artifactService.resolveForRun("run-1", "explain-plan"))
+                .thenReturn(Optional.of(plan));
+        Mockito.when(artifactService.readText(plan))
+                .thenAnswer(inv -> Optional.of(java.nio.file.Files.readString(plan)));
+
+        ResponseEntity<com.bakr.queryforge.artifact.PlanParser.PlanNode> resp =
+                controller.parsedPlan("run-1", "explain-plan");
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resp.getBody()).isNotNull();
+        assertThat(resp.getBody().children()).isNotEmpty();
+    }
+
+    @Test
+    void runScopedPlanRejectsUnknownRun() {
+        Mockito.when(runs.findById("missing")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> controller.parsedPlan("missing", "explain-plan"))
+                .isInstanceOf(com.bakr.queryforge.service.NotFoundException.class);
     }
 
     private static ExperimentRun run(String id, String state) {

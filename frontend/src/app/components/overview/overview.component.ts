@@ -1,7 +1,8 @@
-import { Component, ChangeDetectorRef, inject } from '@angular/core';
+import { Component, ChangeDetectorRef, effect, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ApiService, ExperimentRun, Readiness } from '../../services/api.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { StateCardComponent } from '../state-card/state-card.component';
 
 @Component({
@@ -15,6 +16,19 @@ import { StateCardComponent } from '../state-card/state-card.component';
         <h1>QueryForge</h1>
         <p class="subtitle">Turn database questions into evidence you can inspect, compare, and trust.</p>
       </header>
+
+      <section class="first-session" *ngIf="signedOut">
+        <div class="first-session-copy">
+          <p class="eyebrow">AUTHENTICATED WORKSPACE</p>
+          <h2>Sign in to open your experiment history.</h2>
+          <p>
+            This deployment requires an account. Use <strong>Sign in</strong> in the header.
+            Read-only accounts can inspect runs; operator accounts can also start and cancel them.
+          </p>
+        </div>
+      </section>
+
+      <ng-container *ngIf="!signedOut">
 
       <section class="first-session" *ngIf="showFirstSession">
         <div class="first-session-copy">
@@ -120,12 +134,14 @@ import { StateCardComponent } from '../state-card/state-card.component';
           <ng-template #noBaseline><p class="card-message">No QF-001 baseline is recorded yet.</p></ng-template>
         </div>
       </div>
+      </ng-container>
     </section>
   `,
   styleUrls: ['./overview.component.css']
 })
 export class OverviewComponent {
   private api = inject(ApiService);
+  private auth = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
 
   runs: ExperimentRun[] = [];
@@ -134,6 +150,8 @@ export class OverviewComponent {
   readinessLoading = true;
   runsError = '';
   readinessError = '';
+  signedOut = false;
+  private loaded = false;
 
   get showFirstSession(): boolean {
     return !this.runsLoading && (this.runsError.length > 0 || this.runs.length === 0);
@@ -148,8 +166,31 @@ export class OverviewComponent {
   }
 
   constructor() {
-    this.loadRuns();
-    this.loadReadiness();
+    // Wait for the session before touching protected endpoints. Firing them
+    // anonymously produced a guaranteed 401 on every signed-out visit, which
+    // the interceptor then turned into a forced OIDC redirect.
+    effect(() => {
+      const session = this.auth.session();
+      if (session === null) return;
+
+      if (session.authEnabled && !session.authenticated) {
+        this.signedOut = true;
+        this.loaded = false;
+        this.runs = [];
+        this.readiness = null;
+        this.runsLoading = false;
+        this.readinessLoading = false;
+        this.cdr.markForCheck();
+        return;
+      }
+
+      this.signedOut = false;
+      if (!this.loaded) {
+        this.loaded = true;
+        this.loadRuns();
+        this.loadReadiness();
+      }
+    });
   }
 
   loadRuns(): void {
@@ -191,8 +232,12 @@ export class OverviewComponent {
       if ('status' in error && typeof error.status === 'number' && [0, 502, 503, 504].includes(error.status)) {
         return `API unavailable (HTTP ${error.status}). Start the backend and try again.`;
       }
-      if ('detail' in error && typeof error.detail === 'string') {
-        return error.detail;
+      const body = (error as any).error;
+      if (body && typeof body === 'object' && typeof body.detail === 'string') {
+        return body.detail;
+      }
+      if ('detail' in error && typeof (error as any).detail === 'string') {
+        return (error as any).detail;
       }
     }
     return fallback;

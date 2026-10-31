@@ -12,9 +12,11 @@ export function apiInterceptor(req: HttpRequest<unknown>, next: HttpHandlerFn): 
 
   return next(authReq).pipe(
     catchError((error: HttpErrorResponse) => {
-      if (error.status === 401 && req.url.startsWith('/api/')) {
-        window.location.assign('/oauth2/authorization/queryforge');
-      }
+      // Never start an OIDC redirect from an arbitrary 401. The landing page
+      // loads before the session is known, and the Keycloak SSO session can
+      // survive a local sign-out: redirecting here turned an anonymous visit
+      // and an explicit sign-out into a silent re-login. The visible "Sign in"
+      // button is the only entry point, and callers render the error instead.
       const problem = error.error as ProblemDetail | undefined;
       return throwError(() => problem ?? {
         type: 'https://problem.org/internal',

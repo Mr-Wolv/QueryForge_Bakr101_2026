@@ -12,7 +12,7 @@ import { PlanExplorerComponent } from '../plan-explorer/plan-explorer.component'
     <section class="plan" *ngIf="artifactId">
       <a class="back" routerLink="/runs">&larr; Run history</a>
       <h1>Explain plan</h1>
-      <app-plan-explorer [artifactId]="artifactId"></app-plan-explorer>
+      <app-plan-explorer [artifactId]="artifactId" [runId]="runId"></app-plan-explorer>
     </section>
   `,
   styleUrls: ['./plan.component.css']
@@ -20,11 +20,19 @@ import { PlanExplorerComponent } from '../plan-explorer/plan-explorer.component'
 export class PlanComponent {
   private route = inject(ActivatedRoute);
   artifactId = '';
+  runId = '';
 
   constructor() {
-    const id = this.route.snapshot.paramMap.get('id') || '';
-    // Callers may pass either the plan artifact ID itself (as listed in a run's
-    // artifacts) or the older run stem, which kept the "-explain" suffix implicit.
-    this.artifactId = id.endsWith('-explain') ? id : id + '-explain';
+    // Prefer the run-scoped route (/plan/:runId/:artifactId): artifact IDs are
+    // already the canonical name (`explain-plan`), and the run scope lets the
+    // backend resolve both manifest-backed and legacy catalog plans.
+    const artifact = this.route.snapshot.paramMap.get('artifactId');
+    const runId = this.route.snapshot.paramMap.get('runId');
+    if (artifact) {
+      this.artifactId = artifact;
+      this.runId = runId || '';
+    } else {
+      this.artifactId = this.route.snapshot.paramMap.get('id') || '';
+    }
   }
 }

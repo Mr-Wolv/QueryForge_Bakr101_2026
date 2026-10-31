@@ -234,8 +234,13 @@ export class ExperimentsComponent {
       if ('status' in error && typeof error.status === 'number' && [0, 502, 503, 504].includes(error.status)) {
         return `API unavailable (HTTP ${error.status}). Start the backend and try again.`;
       }
-      if ('detail' in error && typeof error.detail === 'string') {
-        return error.detail;
+      const body = (error as any).error;
+      if (body && typeof body === 'object') {
+        if (typeof body.detail === 'string') return body.detail;
+        if (typeof body.title === 'string') return body.title;
+      }
+      if ('detail' in error && typeof (error as any).detail === 'string') {
+        return (error as any).detail;
       }
     }
     return fallback;

@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `InternalRunnerToken` + `InternalRunnerFilter`: a process-local random credential that lets the bundled k6 runner read only `GET /api/products*` under the authenticated profile, without making product reads public or exposing the token through HTTP.
+- Frontend unit-test target (`@angular/build:unit-test` + Vitest + jsdom) with 23 specs covering the API cache, session/logout, SSE run detail, plan explorer, run history, and the API interceptor; CI runs `npm test`.
+- Real-stack Playwright acceptance suite (`frontend/e2e/real-stack.spec.ts`, `QF_REAL_STACK=1`): Keycloak sign-in, viewer/operator authorization, CSRF, malformed input, live SSE, run creation/cancel, run-scoped EXPLAIN plans, comparisons, nginx security headers, and sign-out.
+- Run-scoped plan route `GET /api/runs/{id}/artifacts/{artifactId}/plan` and SPA route `/plan/:runId/:artifactId`; legacy plan routes remain.
+- `postgres-exporter` scrape target, backend Compose healthcheck, frontend start gated on a healthy backend, and alert delivery settings for the local Mailpit sink (`send_resolved`, short local group intervals).
 - Docker-first Compose startup for the database, API, and frontend, including fresh-volume schema initialization and an isolated Python dataset-generator service.
 - Portable SQL dataset loader that refreshes PostgreSQL statistics and advances the product ID sequence after import.
 - `ManifestStore` + `RunArtifact`: immutable per-run manifests with checksums, and run-scoped artifact IDs so downloads resolve through `/api/runs/{id}/artifacts/{artifactId}` instead of a global artifact name space.
@@ -27,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Latency chart bars carry value labels and follow the design tokens in both themes.
 
 ### Changed
+- The landing page now waits for `/api/auth/session` before loading protected data; signed-out visitors see the Sign in action instead of an error or an automatic OIDC redirect.
+- The API interceptor no longer redirects on every 401; callers render the RFC 7807 problem. This removes the silent SSO re-login after an explicit sign-out.
+- Bare numeric duration parameters are translated to k6 durations (`10` → `10s`), while explicit forms (`60s`, `2m`) are preserved.
+- Live run output now tails both stdout and stderr, tagging each event with its stream.
 - Angular pages load as route-level chunks; the production initial-bundle budget is now 400 kB warning / 500 kB error.
 - Run-history requests reuse an in-memory index of persisted manifests rather than reopening every manifest file for each request.
 - Frontend container build now uses Node.js 24 to match CI and contributor setup.

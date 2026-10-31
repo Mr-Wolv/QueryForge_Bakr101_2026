@@ -2,6 +2,7 @@ package com.bakr.queryforge.experiment;
 
 import com.bakr.queryforge.api.dto.ExperimentRunRequest;
 import com.bakr.queryforge.artifact.ArtifactService;
+import com.bakr.queryforge.artifact.PlanParser;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -98,6 +99,26 @@ public class ExperimentRunController {
                 "id", id,
                 "state", state
         ));
+    }
+
+    /**
+     * Run-scoped parsed plan.  Legacy runs publish a plan artifact whose stored
+     * path points at the shared {@code docs/experiments/plans} catalog, while
+     * new runs carry their own {@code explain-plan} artifact.  Resolving
+     * through the run keeps both forms working without guessing a suffix.
+     */
+    @GetMapping("/{id}/artifacts/{artifactId}/plan")
+    public ResponseEntity<PlanParser.PlanNode> parsedPlan(
+            @PathVariable String id, @PathVariable String artifactId) {
+        runs.findById(id).orElseThrow(
+                () -> new com.bakr.queryforge.service.NotFoundException("run not found: " + id));
+        Path path = artifactService.resolveForRun(id, artifactId)
+                .orElseThrow(() -> new com.bakr.queryforge.service.NotFoundException(
+                        "artifact not found: " + artifactId));
+        String text = artifactService.readText(path)
+                .orElseThrow(() -> new com.bakr.queryforge.service.NotFoundException(
+                        "artifact is empty: " + artifactId));
+        return ResponseEntity.ok(new PlanParser().parse(text));
     }
 
     @GetMapping("/{id}/artifacts/{artifactId}")

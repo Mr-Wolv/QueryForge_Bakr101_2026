@@ -31,6 +31,7 @@ export class AuthService {
   signOut(): void {
     this.api.logout().subscribe({
       next: () => {
+        this.api.invalidateRuns();
         this.session.set({
           authEnabled: true,
           authenticated: false,

@@ -14,7 +14,11 @@ import { SkeletonCardComponent } from '../skeleton-card/skeleton-card.component'
     <section class="runs">
       <h1>Run history</h1>
       <app-skeleton-card mode="loading" *ngIf="loading" />
-      <div class="filter" *ngIf="!loading && runs.length > 0">
+      <div class="error-banner" *ngIf="loadError" role="alert">
+        {{ loadError }}
+        <button class="retry" (click)="reload()">Retry</button>
+      </div>
+      <div class="filter" *ngIf="!loading && !loadError && runs.length > 0">
         <label>
           Filter by template
           <select [(ngModel)]="templateFilter" (ngModelChange)="applyFilter()">
@@ -38,7 +42,7 @@ import { SkeletonCardComponent } from '../skeleton-card/skeleton-card.component'
           <input type="date" [(ngModel)]="dateTo" (ngModelChange)="applyFilter()" />
         </label>
       </div>
-      <div class="list" *ngIf="filteredRuns.length > 0; else empty">
+      <div class="list" *ngIf="!loadError && filteredRuns.length > 0; else empty">
         <div class="list-head" aria-hidden="true">
           <span>Run</span>
           <span>Template</span>
@@ -55,7 +59,7 @@ import { SkeletonCardComponent } from '../skeleton-card/skeleton-card.component'
         </a>
       </div>
       <ng-template #empty>
-        <app-state-card mode="empty" message="No runs recorded yet." />
+        <app-state-card *ngIf="!loadError" mode="empty" message="No runs recorded yet." />
       </ng-template>
     </section>
   `,
@@ -72,6 +76,7 @@ export class RunsComponent {
   dateFrom = '';
   dateTo = '';
   loading = true;
+  loadError: string | null = null;
 
   get templates(): string[] {
     const set = new Set(this.runs.map(r => r.templateId));
@@ -86,11 +91,24 @@ export class RunsComponent {
   constructor() {
     // The catalog links here with the template preselected.
     this.templateFilter = this.route.snapshot.queryParamMap.get('template') ?? '';
-    this.api.getRuns().subscribe(r => {
-      this.runs = r;
-      this.loading = false;
-      this.applyFilter();
-      this.cdr.markForCheck();
+    this.reload();
+  }
+
+  reload() {
+    this.loading = true;
+    this.loadError = null;
+    this.api.getRuns().subscribe({
+      next: r => {
+        this.runs = r;
+        this.loading = false;
+        this.applyFilter();
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.loading = false;
+        this.loadError = 'Run history could not be loaded. The backend may be unavailable.';
+        this.cdr.markForCheck();
+      }
     });
   }
 

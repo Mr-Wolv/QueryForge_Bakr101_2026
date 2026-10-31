@@ -135,6 +135,14 @@ export class ApiService {
     );
   }
 
+  /** Drop cached run history so the next read reflects a just-mutated run. */
+  invalidateRuns(): void {
+    this.cache.delete('runs');
+    for (const key of Array.from(this.inflight.keys())) {
+      if (key.startsWith('run:')) this.inflight.delete(key);
+    }
+  }
+
   private dedup<T>(key: string, request: () => Observable<T>): Observable<T> {
     const existing = this.inflight.get(key);
     if (existing) {
@@ -195,16 +203,29 @@ export class ApiService {
     return this.http.get(`${this.base}/artifacts/${artifactId}/meta`);
   }
 
-  getParsedPlan(artifactId: string): Observable<any> {
-    return this.http.get(`${this.base}/artifacts/${artifactId}/plan`);
+  getParsedPlan(artifactId: string, runId?: string): Observable<any> {
+    const url = runId
+      ? `${this.base}/runs/${encodeURIComponent(runId)}/artifacts/${encodeURIComponent(artifactId)}/plan`
+      : `${this.base}/artifacts/${encodeURIComponent(artifactId)}/plan`;
+    return this.http.get(url);
   }
 
   createRun(templateId: string, parameters: Record<string, string>, clientRequestId?: string): Observable<ExperimentRun> {
-    return this.http.post<ExperimentRun>(`${this.base}/runs`, { templateId, parameters, clientRequestId });
+    return this.http.post<ExperimentRun>(`${this.base}/runs`, { templateId, parameters, clientRequestId }).pipe(
+      tap({ next: () => this.invalidateRuns() })
+    );
   }
 
   startRun(id: string): Observable<ExperimentRun> {
-    return this.http.post<ExperimentRun>(`${this.base}/runs/${id}/start`, {});
+    return this.http.post<ExperimentRun>(`${this.base}/runs/${id}/start`, {}).pipe(
+      tap({ next: () => this.invalidateRuns() })
+    );
+  }
+
+  cancelRun(id: string): Observable<{ id: string; state: string }> {
+    return this.http.post<{ id: string; state: string }>(`${this.base}/runs/${id}/cancel`, {}).pipe(
+      tap({ next: () => this.invalidateRuns() })
+    );
   }
 
   compare(leftRunId: string, rightRunId: string): Observable<ComparisonResult> {

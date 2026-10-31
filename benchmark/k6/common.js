@@ -4,7 +4,12 @@ import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.4/index.js';
 export const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 
 const jsonParams = {
-  headers: { Accept: 'application/json' },
+  headers: {
+    Accept: 'application/json',
+    // The orchestrator injects a process-local token so the bundled runner can
+    // read the benchmark target while the API stays authenticated.
+    ...(__ENV.QF_INTERNAL_TOKEN ? { 'X-QueryForge-Internal-Token': __ENV.QF_INTERNAL_TOKEN } : {}),
+  },
 };
 
 export const PAGE_SIZE = 50;

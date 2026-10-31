@@ -1,9 +1,11 @@
 # Operations guide
 
-QueryForge is a **local development and portfolio application**, not a public
-service. Its API has no authentication. The default host-based backend binds to
-loopback, and Compose publishes the application ports on loopback; do not
-override those boundaries on an untrusted network.
+QueryForge has two local operating modes. The **development bypass** (default profile) has no
+authentication; its backend binds to loopback and Compose publishes application ports on loopback,
+so it must not be exposed on an untrusted network. The **authenticated local profile**
+(`QF_SPRING_PROFILE=local-auth`) runs the real OIDC login/session/CSRF chain against the bundled
+Keycloak; use it for demos and acceptance work. The production-shaped deployment remains a
+separate, externally configured stack.
 
 ## Start and inspect the local stack
 
@@ -65,10 +67,41 @@ containers, preserve the original volume until recovery is verified, and
 restore into a clean database or volume. `pg_restore --clean` drops existing
 objects and must not be run against the only copy of the data.
 
+The check was executed on 2026-10-31: the scratch database restored 250 products
+(ids 1–250) and 4 public tables, matching the live database; the scratch database
+and dump were then removed.
+
+## Exercise an alert
+
+With the monitoring profile running, stop the backend and watch both sides:
+
+```sh
+docker compose stop backend
+# after the 2-minute `for` window: http://localhost:9090/alerts shows firing
+# and http://localhost:8025 receives [FIRING:1] QueryForgeBackendUnavailable
+docker compose start backend
+# the alert resolves and Mailpit receives [RESOLVED]
+```
+
+This pipeline was verified end to end on 2026-10-31. The local Alertmanager
+config shortens `group_wait`/`group_interval` so delivery is observable; the
+production template keeps the standard 30 s / 5 min values.
+
 ## Readiness and known operating limits
 
 - Check `/actuator/health` before using the UI; a healthy API does not prove a
   benchmark dataset or k6 is ready.
+- In `local-auth`, management endpoints are exposed on container port `8081`
+  (`management.server.port`) so Prometheus can scrape `backend:8081` inside the
+  Compose network; host port `8081` still maps to the application on `8080`.
+- The bundled benchmark runner authenticates with a process-local
+  `InternalRunnerToken`, scoped to anonymous `GET /api/products*`. The token is
+  rotated on every backend start and is never returned by the API. It is an
+  internal convenience for the loopback-only runner; do not reuse this pattern
+  for a public deployment.
+- Signing out invalidates the application session but does not end the Keycloak
+  SSO session. A second sign-in may complete without a password prompt until
+  that SSO session expires.
 - Request metrics and Prometheus histograms are exposed locally at
   `/actuator/metrics` and `/actuator/prometheus`.
 - The in-memory run-history snapshot refreshes every two seconds; newly written

@@ -266,3 +266,68 @@
       border-color: var(--accent, #111);
       color: var(--text, #111);
     }
+
+    .error-banner {
+      padding: var(--space-4, 1rem) var(--space-5, 24px);
+      margin-bottom: var(--space-4, 1rem);
+      border: 1px solid var(--color-danger, #b33a2e);
+      border-radius: var(--radius-lg, 8px);
+      background: var(--color-danger-bg, #fdf0ee);
+      color: var(--color-danger, #b33a2e);
+      font-size: 14px;
+    }
+    .run-controls {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3, 12px);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-5, 24px);
+    }
+    .run-controls .launch { margin-bottom: 0; }
+    .cancel {
+      padding: var(--space-3, 12px) var(--space-5, 24px);
+      background: transparent;
+      color: var(--color-danger, #b33a2e);
+      border: 1px solid var(--color-danger, #b33a2e);
+      border-radius: var(--radius-md, 4px);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 150ms ease;
+    }
+    .cancel:hover:not(:disabled) { background: var(--color-danger-bg, #fdf0ee); }
+    .cancel:disabled { opacity: .5; cursor: not-allowed; }
+    .readonly-note { font-size: 13px; color: var(--text-muted, #999); }
+    .live { margin-bottom: var(--space-5, 24px); }
+    .live-head {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3, 12px);
+      margin-bottom: var(--space-2, 8px);
+    }
+    .live-head .clear {
+      margin-left: auto;
+      font: inherit;
+      font-size: 12px;
+      padding: var(--space-1, 4px) var(--space-3, 12px);
+      border: 1px solid var(--border, #e5e5e5);
+      border-radius: var(--radius-md, 4px);
+      background: transparent;
+      color: var(--text-secondary, #555);
+      cursor: pointer;
+    }
+    .live-log {
+      margin: 0;
+      padding: var(--space-3, 12px) var(--space-4, 1rem);
+      background: #0f1115;
+      color: #d8dee9;
+      border-radius: var(--radius-lg, 8px);
+      font-family: var(--font-mono, ui-monospace, monospace);
+      font-size: 12px;
+      line-height: 1.55;
+      max-height: 320px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }

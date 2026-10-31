@@ -20,6 +20,7 @@ import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.util.matcher.RequestMatcher;
@@ -42,11 +43,13 @@ public class ProductionSecurityConfig {
     SecurityFilterChain productionSecurityFilterChain(
             HttpSecurity http,
             OAuth2UserService<OidcUserRequest, OidcUser> queryForgeOidcUserService,
-            ObjectMapper objectMapper) throws Exception {
+            ObjectMapper objectMapper,
+            InternalRunnerToken runnerToken) throws Exception {
         var csrfRequestHandler = new CsrfTokenRequestAttributeHandler();
         csrfRequestHandler.setCsrfRequestAttributeName(null);
 
         http
+                .addFilterAfter(new InternalRunnerFilter(runnerToken), SecurityContextHolderFilter.class)
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(csrfRequestHandler))
@@ -73,10 +76,19 @@ public class ProductionSecurityConfig {
                         .defaultAccessDeniedHandlerFor(
                                 (request, response, exception) -> writeProblem(
                                         response, objectMapper, HttpStatus.FORBIDDEN,
-                                        "Operator access required"),
+                                        // A missing/forged CSRF token and a missing role
+                                        // both surface as 403; the detail must say which
+                                        // one so clients do not chase the wrong cause.
+                                        exception instanceof org.springframework.security.web.csrf.CsrfException
+                                                ? "CSRF token missing or invalid"
+                                                : "Operator access required"),
                                 API_REQUESTS))
                 .oauth2Login(oauth2 -> oauth2
-                        .userInfoEndpoint(userInfo -> userInfo.oidcUserService(queryForgeOidcUserService)))
+                        .userInfoEndpoint(userInfo -> userInfo.oidcUserService(queryForgeOidcUserService))
+                        // An XHR that hits a protected endpoint redirects the whole page
+                        // to the provider; land back on the SPA root instead of the raw
+                        // JSON that originally triggered the 401.
+                        .defaultSuccessUrl("/", true))
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")
                         .invalidateHttpSession(true)
@@ -132,5 +144,43 @@ public class ProductionSecurityConfig {
                 "title", status.getReasonPhrase(),
                 "status", status.value(),
                 "detail", detail));
+    }
+
+    /**
+     * Authenticates the in-process benchmark runner.
+     *
+     * <p>Scoped to GET requests for the product read API: the token cannot reach
+     * run orchestration, comparisons, or any state-changing endpoint, so a leak
+     * would expose only synthetic catalog reads.
+     */
+    private static final class InternalRunnerFilter extends org.springframework.web.filter.OncePerRequestFilter {
+
+        private final InternalRunnerToken runnerToken;
+
+        private InternalRunnerFilter(InternalRunnerToken runnerToken) {
+            this.runnerToken = runnerToken;
+        }
+
+        @Override
+        protected void doFilterInternal(jakarta.servlet.http.HttpServletRequest request,
+                                        jakarta.servlet.http.HttpServletResponse response,
+                                        jakarta.servlet.FilterChain filterChain)
+                throws jakarta.servlet.ServletException, java.io.IOException {
+            boolean productRead = "GET".equals(request.getMethod())
+                    && request.getServletPath().startsWith("/api/products");
+            boolean anonymous = org.springframework.security.core.context.SecurityContextHolder
+                    .getContext().getAuthentication() == null;
+            if (productRead && anonymous
+                    && runnerToken.matches(request.getHeader(InternalRunnerToken.HEADER))) {
+                var authentication = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        "benchmark-runner",
+                        null,
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_OPERATOR")));
+                org.springframework.security.core.context.SecurityContextHolder
+                        .getContext().setAuthentication(authentication);
+            }
+            filterChain.doFilter(request, response);
+        }
     }
 }

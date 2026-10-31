@@ -45,6 +45,15 @@ services:
       - ./benchmark/results:/app/benchmark/results
       - ./benchmark/runs:/app/benchmark/runs
       - ./docs/experiments:/app/docs/experiments:ro
+    healthcheck:
+      # The runtime image has no curl/wget; bash /dev/tcp verifies the app port
+      # (the actuator lives on 8081 inside the container). /api/auth/session is
+      # permitted in both the development and authenticated local profiles.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /api/auth/session HTTP/1.0\\r\\n\\r\\n' >&3; grep -q '200' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 24
+      start_period: 40s
     depends_on:
       db:
         condition: service_healthy
@@ -58,7 +67,8 @@ services:
     ports:
       - "127.0.0.1:${QF_WEB_PORT:-8080}:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
       interval: 10s
@@ -103,6 +113,19 @@ services:
       timeout: 3s
       retries: 20
 
+  # PostgreSQL metrics exporter. Needs a scrape target that actually exists;
+  # the previous Prometheus config referenced a service that was never defined.
+  postgres-exporter:
+    profiles: ["monitoring"]
+    image: prometheuscommunity/postgres-exporter:v0.17.1
+    environment:
+      DATA_SOURCE_URI: db:5432/queryforge?sslmode=disable
+      DATA_SOURCE_USER: queryforge
+      DATA_SOURCE_PASS: ${QF_DB_PASSWORD:-queryforge}
+    depends_on:
+      db:
+        condition: service_healthy
+
   prometheus:
     profiles: ["monitoring"]
     image: prom/prometheus:v3.5.0
@@ -128,6 +151,8 @@ services:
     volumes:
       - ./monitoring/alertmanager.local.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager_data:/alertmanager
+    ports:
+      - "127.0.0.1:${QF_ALERTMANAGER_PORT:-9093}:9093"
     depends_on:
       mailpit:
         condition: service_healthy

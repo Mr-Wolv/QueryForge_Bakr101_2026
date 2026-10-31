@@ -143,7 +143,13 @@ export class CompareComponent {
   b = '';
 
   constructor() {
-    this.api.getRuns().subscribe(r => { this.runs = r; this.cdr.markForCheck(); });
+    this.api.getRuns().subscribe({
+      next: r => { this.runs = r; this.cdr.markForCheck(); },
+      error: () => {
+        this.error = 'Run history could not be loaded, so nothing can be compared yet.';
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   groupStart(row: DeltaRow): string {
@@ -172,7 +178,7 @@ export class CompareComponent {
         this.cdr.markForCheck();
       },
       error: (err: any) => {
-        this.error = err?.error?.error || err?.error?.message || 'Comparison failed';
+        this.error = err?.error?.detail || err?.error?.title || 'Comparison failed.';
         this.loading = false;
         this.cdr.markForCheck();
       }

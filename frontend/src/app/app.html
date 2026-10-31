@@ -33,6 +33,15 @@
   </button>
 </header>
 
+@if (auth.session(); as identity) {
+  @if (!identity.authEnabled) {
+    <div class="dev-banner" role="status">
+      <strong>Development mode.</strong>
+      Authentication is disabled by the active security profile. Every request runs as an unrestricted local user.
+    </div>
+  }
+}
+
 <main id="main" class="main">
   <router-outlet />
 </main>

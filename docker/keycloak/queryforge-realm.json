@@ -15,8 +15,8 @@
       "protocol": "openid-connect",
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
-      "redirectUris": ["http://localhost:8080/login/oauth2/code/queryforge"],
-      "webOrigins": ["http://localhost:8080"],
+      "redirectUris": ["http://localhost:8080/login/oauth2/code/queryforge", "http://127.0.0.1:8080/login/oauth2/code/queryforge"],
+      "webOrigins": ["http://localhost:8080", "http://127.0.0.1:8080"],
       "defaultClientScopes": ["profile", "email", "roles"],
       "optionalClientScopes": ["groups"],
       "protocolMappers": [

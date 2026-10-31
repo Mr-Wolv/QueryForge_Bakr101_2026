@@ -177,6 +177,7 @@ public class ExperimentOrchestrator {
         Process process = null;
         RunnerAdapter adapter = adapterOrNull();
         LogTailer tailer = null;
+        LogTailer errorTailer = null;
         AtomicReference<ExperimentRun> result = new AtomicReference<>();
 
         try {
@@ -187,8 +188,12 @@ public class ExperimentOrchestrator {
 
             process = adapter.execute(template, parameters, workDir);
             runningProcesses.put(runId, process);
-            tailer = new LogTailer(workDir.resolve("stdout.log"), runId, events);
+            tailer = new LogTailer(workDir.resolve("stdout.log"), runId, "stdout", events);
             tailer.start();
+            // k6 writes configuration and runtime failures to stderr. Without a
+            // live tail, an immediately failing run showed no output at all.
+            errorTailer = new LogTailer(workDir.resolve("stderr.log"), runId, "stderr", events);
+            errorTailer.start();
 
             final Process finalProcess = process;
             ScheduledFuture<?> watchdogTask = watchdog.schedule(() -> {
@@ -226,6 +231,7 @@ public class ExperimentOrchestrator {
         } finally {
             runningProcesses.remove(runId);
             if (tailer != null) tailer.stop();
+            if (errorTailer != null) errorTailer.stop();
 
             List<RunArtifact> artifacts = collectArtifacts(runId, workDir, parameters, adapter);
             Metrics metrics = readMetrics(workDir);
@@ -643,14 +649,16 @@ public class ExperimentOrchestrator {
 
         private final Path file;
         private final String runId;
+        private final String stream;
         private final RunEventBus events;
         private final AtomicBoolean running = new AtomicBoolean(true);
         private final StringBuilder pending = new StringBuilder();
         private Thread thread;
 
-        LogTailer(Path file, String runId, RunEventBus events) {
+        LogTailer(Path file, String runId, String stream, RunEventBus events) {
             this.file = file;
             this.runId = runId;
+            this.stream = stream;
             this.events = events;
         }
 
@@ -712,14 +720,14 @@ public class ExperimentOrchestrator {
             while ((newline = pending.indexOf("\n")) >= 0) {
                 String line = pending.substring(0, newline);
                 pending.delete(0, newline + 1);
-                if (!line.isBlank()) events.log(runId, "stdout", line);
+                if (!line.isBlank()) events.log(runId, stream, line);
             }
         }
 
         private void flush() {
             emitLines();
             if (!pending.isEmpty()) {
-                events.log(runId, "stdout", pending.toString());
+                events.log(runId, stream, pending.toString());
                 pending.setLength(0);
             }
         }

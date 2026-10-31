@@ -2,10 +2,12 @@ import { Component, inject, ChangeDetectorRef, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink, Router } from '@angular/router';
-import { ApiService, ExperimentRun, Hint, RunArtifact, RunEvent } from '../../services/api.service';
+import { ApiService, ExperimentRun, Hint, RunArtifact } from '../../services/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { LatencyChartComponent } from '../latency-chart/latency-chart.component';
 import { StateCardComponent } from '../state-card/state-card.component';
+
+const TERMINAL_STATES = new Set(['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT']);
 
 @Component({
   selector: 'app-run-detail',
@@ -22,14 +24,34 @@ import { StateCardComponent } from '../state-card/state-card.component';
       <h1>{{run.id}}</h1>
       <div class="meta">
         <span>Template: {{run.templateId}}</span>
-        <span>State: <em>{{run.state}}</em></span>
+        <span>State: <em>{{displayState}}</em></span>
         <span>Duration: {{run.durationMs | number}} ms</span>
         <span>Started: {{run.startedAt | date:'short'}}</span>
       </div>
 
-      <button *ngIf="run.state === 'QUEUED' && auth.canOperate()" class="launch" (click)="start()" [disabled]="starting">
-        {{starting ? 'Starting…' : 'Start run'}}
-      </button>
+      <div class="error-banner" *ngIf="actionError" role="alert">{{actionError}}</div>
+
+      <div class="run-controls">
+        <button *ngIf="run.state === 'QUEUED' && auth.canOperate()" class="launch" (click)="start()" [disabled]="starting">
+          {{starting ? 'Starting…' : 'Start run'}}
+        </button>
+        <button *ngIf="isActive && auth.canOperate()" class="cancel" (click)="cancel()" [disabled]="cancelling">
+          {{cancelling ? 'Cancelling…' : 'Cancel run'}}
+        </button>
+        <span class="readonly-note" *ngIf="isActive && !auth.canOperate()">
+          Read-only account: start and cancel require the operator role.
+        </span>
+      </div>
+
+      <div class="live" *ngIf="liveState || liveLogs.length > 0">
+        <div class="live-head">
+          <span class="sse-badge" [class.running]="displayState === 'RUNNING'" [class.succeeded]="displayState === 'SUCCEEDED'" [class.failed]="displayState === 'FAILED'">
+            Live: {{ displayState }}
+          </span>
+          <button class="clear" *ngIf="liveLogs.length > 0" (click)="clearLogs()">Clear log</button>
+        </div>
+        <pre class="live-log" *ngIf="liveLogs.length > 0" aria-live="polite">{{ liveLogs.join('\n') }}</pre>
+      </div>
 
       <h2>Latency percentiles</h2>
       <app-latency-chart [data]="latencyChartData" />
@@ -55,8 +77,8 @@ import { StateCardComponent } from '../state-card/state-card.component';
         <div class="hint" *ngFor="let h of hints" [class.severity]="h.severity">
           <strong>{{h.title}}</strong>
           <p>{{h.body}}</p>
-          <button class="test-lab" (click)="testInLab(h.title)" *ngIf="auth.canOperate() && (h.severity === 'suggestion' || h.severity === 'warning')">
-            Test in lab
+          <button class="test-lab" (click)="testInLab()" *ngIf="auth.canOperate() && (h.severity === 'suggestion' || h.severity === 'warning')" [disabled]="creatingLab">
+            {{creatingLab ? 'Creating…' : 'Test in lab'}}
           </button>
         </div>
       </div>
@@ -67,12 +89,6 @@ import { StateCardComponent } from '../state-card/state-card.component';
       <div class="actions" *ngIf="run">
         <button class="export" (click)="export('markdown')">Export Markdown</button>
         <button class="export" (click)="export('html')">Export HTML</button>
-      </div>
-
-      <div class="sse-log" *ngIf="liveState">
-        <span class="sse-badge" [class.running]="liveState === 'RUNNING'" [class.succeeded]="liveState === 'SUCCEEDED'" [class.failed]="liveState === 'FAILED'">
-          Live: {{ liveState }}
-        </span>
       </div>
 
       <h2>Artifacts</h2>
@@ -91,7 +107,7 @@ import { StateCardComponent } from '../state-card/state-card.component';
             <span class="kind">{{a.kind}}</span>
             <span class="desc">{{a.description}}</span>
           </a>
-          <a class="plan-link" *ngIf="isPlanArtifact(a)" [routerLink]="['/plan', a.artifactId]">View plan</a>
+          <a class="plan-link" *ngIf="isPlanArtifact(a)" [routerLink]="['/plan', run.id, a.artifactId]">View plan</a>
         </div>
       </div>
       <ng-template #noArtifacts>
@@ -107,57 +123,186 @@ export class RunDetailComponent implements OnDestroy {
   readonly auth = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
   private router = inject(Router);
+
+  private readonly runId: string;
   run?: ExperimentRun;
   starting = false;
+  cancelling = false;
+  creatingLab = false;
+  actionError: string | null = null;
   hints: Hint[] = [];
   artifactFilter = '';
   filteredArtifacts: ExperimentRun['artifacts'] = [];
   liveState: string | null = null;
+  liveLogs: string[] = [];
   private sse?: EventSource;
+  private closed = false;
 
   constructor() {
-    const id = this.route.snapshot.paramMap.get('id') || '';
-    this.api.getRun(id).subscribe(r => {
-      this.run = r;
-      this.applyArtifactFilter();
-      this.api.getHints(id).subscribe(h => {
-        this.hints = h;
-        // Zoneless app: the hints arrive after the outer markForCheck.
-        this.cdr.markForCheck();
-      });
-      this.cdr.markForCheck();
-    });
-    this.connectSse(id);
+    this.runId = this.route.snapshot.paramMap.get('id') || '';
+    this.load();
+    this.connectSse();
   }
 
   ngOnDestroy(): void {
-    if (this.sse) {
-      this.sse.close();
+    this.closed = true;
+    this.closeSse();
+  }
+
+  get displayState(): string {
+    return this.liveState ?? this.run?.state ?? '';
+  }
+
+  get isActive(): boolean {
+    return !!this.run && !TERMINAL_STATES.has(this.displayState);
+  }
+
+  private load() {
+    this.api.getRun(this.runId).subscribe({
+      next: run => {
+        this.run = run;
+        this.applyArtifactFilter();
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.actionError = 'Run could not be loaded. It may have been removed.';
+        this.cdr.markForCheck();
+      }
+    });
+    this.api.getHints(this.runId).subscribe({
+      next: hints => {
+        this.hints = hints;
+        // Zoneless app: the hints arrive after the outer markForCheck.
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        // Hints are advisory; a failed hint request must not break the run view.
+        this.hints = [];
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  private connectSse() {
+    if (!this.runId) return;
+    try {
+      this.sse = this.api.sseEvents(this.runId);
+      // The backend emits NAMED events. `onmessage` only ever fires for unnamed
+      // events, so listening that way silently drops every live update.
+      this.sse.addEventListener('state', (ev: MessageEvent) => {
+        const state = this.parse(ev)?.state;
+        if (!state) return;
+        this.liveState = state;
+        this.cdr.markForCheck();
+        if (TERMINAL_STATES.has(state)) {
+          this.finishLive();
+        }
+      });
+      this.sse.addEventListener('log', (ev: MessageEvent) => {
+        const text = this.parse(ev)?.text;
+        if (typeof text !== 'string' || text.length === 0) return;
+        this.liveLogs.push(text);
+        if (this.liveLogs.length > 200) this.liveLogs.shift();
+        this.cdr.markForCheck();
+      });
+      this.sse.addEventListener('artifact', () => {
+        // Artifact metadata lives on the run document; refresh so the list and
+        // plan links appear as soon as the runner finalizes them.
+        this.refreshRun();
+      });
+      this.sse.addEventListener('error', (ev: Event) => {
+        // Transport failures also arrive as `error`, without data. Only the
+        // server-sent named event carries a payload.
+        const message = this.parse(ev as MessageEvent)?.message;
+        if (typeof message === 'string' && message.length > 0) {
+          this.actionError = message;
+          this.cdr.markForCheck();
+        }
+      });
+      this.sse.onerror = () => {
+        // EventSource reconnects by itself. Once the run is terminal we close it
+        // so the page does not reconnect forever against a completed stream.
+        if (this.closed || (this.liveState && TERMINAL_STATES.has(this.liveState))) {
+          this.closeSse();
+        }
+      };
+    } catch {
+      // SSE is an enhancement: the page still renders the persisted run.
     }
   }
 
-  private connectSse(id: string) {
+  private parse(ev: MessageEvent): any | null {
+    if (!ev || typeof ev.data !== 'string') return null;
     try {
-      this.sse = this.api.sseEvents(id);
-      this.sse.onmessage = (ev) => {
-        try {
-          const data: RunEvent = JSON.parse(ev.data);
-          this.liveState = data.state;
-          this.cdr.markForCheck();
-        } catch {}
-      };
-      this.sse.onerror = () => {
-        this.sse?.close();
-      };
-    } catch {}
+      return JSON.parse(ev.data);
+    } catch {
+      return null;
+    }
+  }
+
+  private finishLive() {
+    this.closeSse();
+    this.refreshRun();
+  }
+
+  private refreshRun() {
+    this.api.getRun(this.runId).subscribe({
+      next: run => {
+        this.run = run;
+        this.applyArtifactFilter();
+        this.cdr.markForCheck();
+      },
+      error: () => {}
+    });
+  }
+
+  private closeSse() {
+    if (this.sse) {
+      this.sse.close();
+      this.sse = undefined;
+    }
+  }
+
+  clearLogs() {
+    this.liveLogs = [];
+    this.cdr.markForCheck();
   }
 
   start() {
-    if (!this.run) return;
+    if (!this.run || this.starting) return;
     this.starting = true;
+    this.actionError = null;
     this.api.startRun(this.run.id).subscribe({
-      next: updated => { this.run = updated; this.starting = false; this.cdr.markForCheck(); },
-      error: () => { this.starting = false; }
+      next: updated => {
+        this.run = updated;
+        this.liveState = updated.state;
+        this.starting = false;
+        this.cdr.markForCheck();
+      },
+      error: err => {
+        this.starting = false;
+        this.actionError = this.describe(err, 'The run could not be started.');
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  cancel() {
+    if (!this.run || this.cancelling) return;
+    this.cancelling = true;
+    this.actionError = null;
+    this.api.cancelRun(this.run.id).subscribe({
+      next: () => {
+        this.cancelling = false;
+        this.refreshRun();
+        this.cdr.markForCheck();
+      },
+      error: err => {
+        this.cancelling = false;
+        this.actionError = this.describe(err, 'The run could not be cancelled.');
+        this.refreshRun();
+        this.cdr.markForCheck();
+      }
     });
   }
 
@@ -172,20 +317,37 @@ export class RunDetailComponent implements OnDestroy {
         a.click();
         URL.revokeObjectURL(url);
       },
-      error: () => {}
+      error: err => {
+        this.actionError = this.describe(err, 'The export could not be generated.');
+        this.cdr.markForCheck();
+      }
     });
   }
 
-  testInLab(hintTitle: string) {
-    // Phase 4: create a candidate run to test the suggested optimization
-    if (!this.run) return;
-    this.api.createRun(this.run.templateId, {
-      ...Object.fromEntries(Object.entries(this.run.labels)),
-      OUT: 'lab-' + Date.now().toString(36)
-    }).subscribe({
-      next: (run) => { this.router.navigate(['/runs', run.id]); },
-      error: () => {}
+  testInLab() {
+    // Create a candidate run that repeats the measured parameters. `labels`
+    // only carries the idempotency key, so it must never be used as input.
+    if (!this.run || this.creatingLab) return;
+    this.creatingLab = true;
+    this.actionError = null;
+    const parameters = { ...this.run.parameters, OUT: 'lab-' + Date.now().toString(36) };
+    this.api.createRun(this.run.templateId, parameters).subscribe({
+      next: created => {
+        this.creatingLab = false;
+        this.api.invalidateRuns();
+        this.router.navigate(['/runs', created.id]);
+      },
+      error: err => {
+        this.creatingLab = false;
+        this.actionError = this.describe(err, 'The lab run could not be created.');
+        this.cdr.markForCheck();
+      }
     });
+  }
+
+  private describe(err: any, fallback: string): string {
+    const detail = err?.error?.detail ?? err?.error?.title;
+    return typeof detail === 'string' && detail.length > 0 ? detail : fallback;
   }
 
   get latencyChartData() {
@@ -204,7 +366,7 @@ export class RunDetailComponent implements OnDestroy {
   }
 
   isPlanArtifact(a: RunArtifact): boolean {
-    return a.kind === 'explain-plan';
+    return a.kind === 'explain-plan' || a.artifactId.startsWith('explain');
   }
 
   applyArtifactFilter() {

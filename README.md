@@ -103,8 +103,23 @@ The Keycloak administration account is `admin` / `admin-local-only` by default; 
 These credentials are intentionally local fixture credentials, never production credentials.
 
 Verify local operational email by opening `http://localhost:8025`. Alertmanager delivers to that
-sink only. Prometheus targets and alerts are available at `http://localhost:9090`; use its alert
-API or a deliberately stopped backend to exercise an alert. Stop the stack without removing data:
+sink only; a deliberate backend stop produces both a `[FIRING:1]` and a `[RESOLVED]` message, and
+both have been observed in this stack. Prometheus targets and alerts are available at
+`http://localhost:9090`; `queryforge` (backend) and `postgres` are both scraped.
+
+Signing out ends the application session and clears the CSRF cookie; the Keycloak SSO session is
+not ended, so an immediate second sign-in can complete without a password prompt. That is standard
+OIDC behavior for this local fixture, not a bypass.
+
+Back up and verify the database without touching the live copy:
+
+```bash
+docker compose exec -T db pg_dump -U queryforge -d queryforge -Fc -f /tmp/queryforge.dump
+docker compose cp db:/tmp/queryforge.dump ./queryforge-backup.dump
+# restore into a scratch database and compare counts (see docs/operations.md)
+```
+
+Stop the stack without removing data:
 
 ```bash
 docker compose --profile app --profile authenticated --profile monitoring down
@@ -119,6 +134,31 @@ want to delete the database volume and its contents. The same Compose commands w
 Command Prompt, macOS Terminal, and Linux shells. Host ports are chosen dynamically by default;
 set `QF_WEB_PORT`, `QF_API_PORT`, or `QF_DB_PORT` in a local `.env` file when a stable port is
 needed.
+
+### Verification (what is actually green)
+
+```bash
+# Backend: 143 tests, including a real postgres:17 container
+runmvn.bat -B -ntp clean verify       # Windows; ./mvnw elsewhere
+
+# Frontend: 23 unit tests + production build
+cd frontend
+npm test
+npm run build
+
+# Fixture-backed browser UI (stubs the API; no stack required)
+npm run e2e:ci                        # 3 tests
+
+# Real-stack acceptance (the authenticated Compose stack must be running)
+QF_REAL_STACK=1 PLAYWRIGHT_BASE_URL=http://localhost:8080 npm run e2e:real   # 9 tests
+```
+
+The fixture suite is not evidence of the integrated path. The real-stack suite signs in through
+Keycloak, checks viewer/operator authorization and CSRF, starts a real k6 run, watches live SSE
+output, cancels a run, opens a run-scoped EXPLAIN plan, compares runs, checks nginx security
+headers, and signs out. Latest evidence: `143 backend`, `23 frontend unit`, `3 fixture`,
+`9 real-stack`, all passing. See [docs/release-readiness.md](docs/release-readiness.md) for the
+full register and limits.
 
 ### Host-based benchmark setup
 
@@ -182,7 +222,7 @@ A lightweight Angular 22 evidence browser lets you inspect experiments, run hist
 Screenshots are generated locally (and are not committed); run `npm run e2e:screenshots` from
 `frontend` after starting the backend and preparing run history.
 
-The production build currently emits a **346.49 kB initial bundle** (estimated **95.20 kB
+The production build currently emits a **351.99 kB initial bundle** (estimated **96.52 kB
 transfer**) with charts and page features split into lazy route chunks. CI enforces an initial
 bundle warning at 400 kB and fails above 500 kB; these bundle limits complement, but do not replace,
 measured API and PostgreSQL latency checks.
