@@ -267,7 +267,7 @@
 - [x] POR-011: Sync Java version in README (25 not 21+)
 
 ### Phase 6 — Quality Assurance & Positive Metrics (Week 6)
-- [ ] Wiring & dead-code audit (TOP PRIORITY, CODEBASE-WIDE): verify every class/component/service is actually invoked in production paths across the entire codebase (not just Phase 4/5); confirm Spring beans wired, methods called, migrations applied, frontend services used; detect orphaned/dead code; remove or wire anything orphaned
+- [ ] Wiring & dead-code audit (TOP PRIORITY, CODEBASE-WIDE, PRODUCTION + LOCAL DEV): zero-dead-code / zero-technical-debt / zero-unwired guardrail — every class, component, service, bean, migration, and frontend service across the entire codebase (production AND local development paths) must have a concrete, exercised use; nothing may exist "to be pretty" or "waiting for a use case"; detect and remove or wire anything orphaned; precise zero-bug-sum code evaluation
 - [ ] Backend ≥95% line coverage (JaCoCo) — gap-fix: `ExperimentOrchestrator.LogTailer`, `CompareRequest`, `ExperimentRunRequest`, `PlanParser.Frame`, `ComparisonController`, `ArtifactController`, `RunEventBus`, `RunHistoryController`, `HintController`
 - [ ] Frontend ≥95% line coverage (Istanbul via `ng test --coverage`) — gap-fix: `skeleton-card` 11%, `toast` 33%, `runs` 42%, `latency-chart` 42%, `run-detail` 62%
 - [ ] Mutation testing: PIT (Java) + Stryker (JS/TS) — prove tests actually kill seeded bugs
