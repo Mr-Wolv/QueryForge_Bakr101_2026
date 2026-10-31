@@ -264,7 +264,7 @@
 - [ ] Documentation sync (README, operations, API)
 - [ ] DB-backed runs store: migrate file-based ExperimentRun to JPA entity for true DB-level pagination/sorting/filtering, transactional writes, and concurrency safety (PER-009 original intent; currently custom in-memory PageResponse)
 - [ ] Accessibility audit (WCAG 2.2 AA)
-- [ ] POR-011: Sync Java version in README (25 not 21+)
+- [x] POR-011: Sync Java version in README (25 not 21+)
 
 ### Phase 6 — Quality Assurance & Positive Metrics (Week 6)
 - [ ] Backend ≥95% line coverage (JaCoCo) — gap-fix: `ExperimentOrchestrator.LogTailer`, `CompareRequest`, `ExperimentRunRequest`, `PlanParser.Frame`, `ComparisonController`, `ArtifactController`, `RunEventBus`, `RunHistoryController`, `HintController`
