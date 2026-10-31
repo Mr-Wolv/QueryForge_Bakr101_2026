@@ -137,7 +137,9 @@ export class ApiService {
 
   /** Drop cached run history so the next read reflects a just-mutated run. */
   invalidateRuns(): void {
-    this.cache.delete('runs');
+    for (const key of Array.from(this.cache.keys())) {
+      if (key.startsWith('runs:')) this.cache.delete(key);
+    }
     for (const key of Array.from(this.inflight.keys())) {
       if (key.startsWith('run:')) this.inflight.delete(key);
     }
@@ -179,7 +181,9 @@ export class ApiService {
   }
 
   getRuns(page: number = 0, size: number = 20): Observable<PageResponse<ExperimentRun>> {
-    return this.http.get<PageResponse<ExperimentRun>>(`${this.base}/runs?page=${page}&size=${size}`);
+    return this.cached(`runs:${page}:${size}`, () =>
+      this.http.get<PageResponse<ExperimentRun>>(`${this.base}/runs?page=${page}&size=${size}`)
+    );
   }
 
   getRun(id: string): Observable<ExperimentRun> {

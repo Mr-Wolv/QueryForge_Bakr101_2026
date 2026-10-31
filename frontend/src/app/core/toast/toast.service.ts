@@ -16,7 +16,7 @@ export class ToastService {
   private nextId = 0;
 
   show(message: string, type: Toast['type'] = 'info', duration = 3000) {
-    const id = ++this.nextId;
+    const id = String(++this.nextId);
     const toast: Toast = { id, message, type, duration };
     this.toasts.next([...this.toasts.value, toast]);
     if (duration > 0) {
@@ -25,7 +25,7 @@ export class ToastService {
     return id;
   }
 
-  dismiss(id: number) {
+  dismiss(id: string) {
     this.toasts.next(this.toasts.value.filter(t => t.id !== id));
   }
 

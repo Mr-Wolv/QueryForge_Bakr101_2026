@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ApiService } from './api.service';
+import { ApiService, PageResponse, ExperimentRun } from './api.service';
 
 const PAGE = {
   content: [{ id: 'run-1' }],
@@ -29,23 +29,23 @@ describe('ApiService', () => {
 
   it('serves run history from cache within the TTL', () => {
     api.getRuns().subscribe();
-    http.expectOne('/api/runs?page=0&size=100').flush(PAGE);
+    http.expectOne('/api/runs?page=0&size=20').flush(PAGE);
 
-    let cached: any[] | undefined;
+    let cached: PageResponse<ExperimentRun> | undefined;
     api.getRuns().subscribe(runs => (cached = runs));
 
     // No second HTTP request: the cache answered it.
-    http.expectNone('/api/runs?page=0&size=100');
-    expect(cached?.length).toBe(1);
+    http.expectNone('/api/runs?page=0&size=20');
+    expect(cached?.content?.length).toBe(1);
   });
 
   it('invalidates the run cache so a mutation is visible immediately', () => {
     api.getRuns().subscribe();
-    http.expectOne('/api/runs?page=0&size=100').flush(PAGE);
+    http.expectOne('/api/runs?page=0&size=20').flush(PAGE);
 
     api.invalidateRuns();
     api.getRuns().subscribe();
-    http.expectOne('/api/runs?page=0&size=100').flush(PAGE);
+    http.expectOne('/api/runs?page=0&size=20').flush(PAGE);
   });
 
   it('invalidates the run cache after creating a run', () => {
@@ -56,7 +56,7 @@ describe('ApiService', () => {
     expect(created.id).toBe('run-2');
     // A stale cached list must not survive the mutation.
     api.getRuns().subscribe();
-    http.expectOne('/api/runs?page=0&size=100').flush(PAGE);
+    http.expectOne('/api/runs?page=0&size=20').flush(PAGE);
   });
 
   it('cancels a run through the documented endpoint', () => {

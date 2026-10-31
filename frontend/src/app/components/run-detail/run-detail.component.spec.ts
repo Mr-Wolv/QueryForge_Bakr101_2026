@@ -101,7 +101,9 @@ describe('RunDetailComponent', () => {
     const { component, sse } = setup();
 
     sse.emit('log', { stream: 'stdout', text: 'k6 running' });
-    expect(component.liveLogs).toEqual(['k6 running']);
+    expect(component.liveLogs).toEqual([
+      { level: 'INFO', message: 'k6 running', stream: 'stdout', time: expect.any(String) },
+    ]);
 
     for (let i = 0; i < 250; i++) sse.emit('log', { text: `line ${i}` });
     expect(component.liveLogs.length).toBe(200);

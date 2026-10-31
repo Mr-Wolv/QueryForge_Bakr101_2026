@@ -361,9 +361,10 @@ export class RunDetailComponent implements OnDestroy {
   }
 
   copyRunId() {
-    if (!this.run) return;
-    navigator.clipboard.writeText(this.run.id).then(() => {
-      this.toast.show(`Copied run ID ${this.run.id}`, 'success');
+    const run = this.run;
+    if (!run) return;
+    navigator.clipboard.writeText(run.id).then(() => {
+      this.toast.show(`Copied run ID ${run.id}`, 'success');
     }, () => {
       this.toast.show('Failed to copy run ID', 'error');
     });
@@ -388,13 +389,14 @@ export class RunDetailComponent implements OnDestroy {
   }
 
   downloadZip() {
-    if (!this.run) return;
-    this.api.downloadArtifactsZip(this.run.id).subscribe({
+    const run = this.run;
+    if (!run) return;
+    this.api.downloadArtifactsZip(run.id).subscribe({
       next: (blob: Blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${this.run.id}-artifacts.zip`;
+        a.download = `${run.id}-artifacts.zip`;
         a.click();
         URL.revokeObjectURL(url);
       },
