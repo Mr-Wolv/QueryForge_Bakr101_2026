@@ -265,6 +265,17 @@
 - [ ] Accessibility audit (WCAG 2.2 AA)
 - [ ] POR-011: Sync Java version in README (25 not 21+)
 
+### Phase 6 — Quality Assurance & Positive Metrics (Week 6)
+- [ ] Backend ≥95% line coverage (JaCoCo) — gap-fix: `ExperimentOrchestrator.LogTailer`, `CompareRequest`, `ExperimentRunRequest`, `PlanParser.Frame`, `ComparisonController`, `ArtifactController`, `RunEventBus`, `RunHistoryController`, `HintController`
+- [ ] Frontend ≥95% line coverage (Istanbul via `ng test --coverage`) — gap-fix: `skeleton-card` 11%, `toast` 33%, `runs` 42%, `latency-chart` 42%, `run-detail` 62%
+- [ ] Mutation testing: PIT (Java) + Stryker (JS/TS) — prove tests actually kill seeded bugs
+- [ ] Contract testing: Pact / Spring Cloud Contract — verify API contracts between backend & frontend
+- [ ] SLOs/SLIs: error budget, latency, availability — production reliability targets
+- [ ] Observability: structured logging, correlation IDs, tracing — detect/diagnose production failures
+- [ ] Security findings: zero critical SAST/DAST/vuln results (OWASP Dependency Check, npm audit)
+- [ ] Feature coverage mapping: traceability matrix — every audit finding + requirement has ≥1 test
+- [ ] E2E coverage (bonus): instrumented backend + frontend, run Playwright against real stack, merge reports (cross-service attribution noted as messy — treat as bonus)
+
 ---
 
 ## NEXT STEPS
@@ -275,4 +286,4 @@ This document will be continuously updated as we:
 3. Re-audit after changes
 4. Track progress toward 95%+ completeness
 
-**Current State:** Deep audit complete. Ready for Phase 1 implementation.
+**Current State:** Phases 1–3 complete (Security, Reproducibility, Performance, Portability, UX). Phase 4 (Maintainability & CI/CD) in progress. Phase 6 (Quality Assurance & Positive Metrics) added as final target.
