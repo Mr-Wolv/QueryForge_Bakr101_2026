@@ -262,6 +262,7 @@
 - [ ] PER-008: Bundle size budgets + analysis
 - [ ] CIC-016: Release automation
 - [ ] Documentation sync (README, operations, API)
+- [ ] DB-backed runs store: migrate file-based ExperimentRun to JPA entity for true DB-level pagination/sorting/filtering, transactional writes, and concurrency safety (PER-009 original intent; currently custom in-memory PageResponse)
 - [ ] Accessibility audit (WCAG 2.2 AA)
 - [ ] POR-011: Sync Java version in README (25 not 21+)
 
