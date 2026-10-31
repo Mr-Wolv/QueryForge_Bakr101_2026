@@ -29,7 +29,7 @@ export class ToastComponent {
   private toastService = inject(ToastService);
   toasts = this.toastService.toasts$;
 
-  dismiss(id: number) {
+  dismiss(id: string) {
     this.toastService.dismiss(id);
   }
 }

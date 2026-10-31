@@ -182,7 +182,7 @@ export class CompareComponent {
 
   constructor() {
     this.api.getRuns().subscribe({
-      next: r => { this.runs = r; this.cdr.markForCheck(); },
+      next: r => { this.runs = r.content; this.cdr.markForCheck(); },
       error: () => {
         this.error = 'Run history could not be loaded, so nothing can be compared yet.';
         this.cdr.markForCheck();

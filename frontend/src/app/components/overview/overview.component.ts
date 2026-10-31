@@ -198,7 +198,7 @@ export class OverviewComponent {
     this.runsError = '';
     this.api.getRuns().subscribe({
       next: runs => {
-        this.runs = runs;
+        this.runs = runs.content;
         this.runsLoading = false;
         this.cdr.markForCheck();
       },
