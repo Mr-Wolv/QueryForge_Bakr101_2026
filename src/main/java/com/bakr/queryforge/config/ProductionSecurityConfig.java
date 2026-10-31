@@ -59,6 +59,7 @@ public class ProductionSecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/actuator/prometheus").permitAll()
                         .requestMatchers("/actuator/**").hasRole("OPERATOR")
+                        .requestMatchers(HttpMethod.GET, "/api/products/**").hasAnyRole("OPERATOR", "RUNNER")
                         .requestMatchers(HttpMethod.POST,
                                 "/api/runs",
                                 "/api/runs/*/start",
@@ -176,7 +177,7 @@ public class ProductionSecurityConfig {
                         "benchmark-runner",
                         null,
                         java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
-                                "ROLE_OPERATOR")));
+                                "ROLE_RUNNER")));
                 org.springframework.security.core.context.SecurityContextHolder
                         .getContext().setAuthentication(authentication);
             }
