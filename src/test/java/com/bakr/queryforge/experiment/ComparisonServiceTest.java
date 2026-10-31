@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -189,16 +190,29 @@ class ComparisonServiceTest {
     }
 
     private static Map<String, Object> fingerprint(int major, long rows, String indexState, String commit) {
-        return Map.of(
-                "available", true,
-                "appCommit", commit,
-                "databaseProduct", "PostgreSQL",
-                "postgresVersion", major + ".4",
-                "postgresMajorVersion", major,
-                "rowCount", rows,
-                "indexState", indexState,
-                "cpuCores", 4,
-                "memoryMb", 4096);
+        Map<String, Object> fp = new LinkedHashMap<>();
+        fp.put("available", true);
+        fp.put("appCommit", commit);
+        fp.put("databaseProduct", "PostgreSQL");
+        fp.put("postgresVersion", major + ".4");
+        fp.put("postgresMajorVersion", major);
+        fp.put("rowCount", rows);
+        fp.put("indexState", indexState);
+        fp.put("cpuCores", 4);
+        fp.put("memoryMb", 4096);
+        return fp;
+    }
+
+    private static Map<String, Object> fingerprint(int major, long rows, String indexState, String commit, String pgVersion) {
+        Map<String, Object> fp = fingerprint(major, rows, indexState, commit);
+        fp.put("postgresVersion", pgVersion);
+        return fp;
+    }
+
+    private static Map<String, Object> fingerprint(int major, long rows, String indexState, String commit, String pgVersion, String dbProduct) {
+        Map<String, Object> fp = fingerprint(major, rows, indexState, commit, pgVersion);
+        fp.put("databaseProduct", dbProduct);
+        return fp;
     }
 
     private static Metrics metrics(int p95) {
@@ -206,5 +220,109 @@ class ComparisonServiceTest {
                 Map.of("p95", BigDecimal.valueOf(p95), "p50", BigDecimal.valueOf(p95 / 2)),
                 Map.of("p95", BigDecimal.valueOf(p95)),
                 100, 10.0);
+    }
+
+    @Test
+    void compareDifferentQueryParameterIsBlocker() throws IOException {
+        String leftId = seedRun("QF-001", Map.of("DATASET", "A"), fingerprint(17, 1_000_000, "baseline", "abc"), metrics(100));
+        String rightId = seedRun("QF-001", Map.of("DATASET", "B"), fingerprint(17, 1_000_000, "baseline", "abc"), metrics(90));
+
+        ComparisonReport report = comparisonService.compare(leftId, rightId, "tester");
+        assertThat(report.verdict().compatible()).isFalse();
+        assertThat(report.verdict().blockers()).anyMatch(b -> b.contains("Different DATASET"));
+    }
+
+    @Test
+    void compareDifferentWorkloadParameterIsWarning() throws IOException {
+        String leftId = seedRun("QF-001", Map.of("RATE", "10"), fingerprint(17, 1_000_000, "baseline", "abc"), metrics(100));
+        String rightId = seedRun("QF-001", Map.of("RATE", "20"), fingerprint(17, 1_000_000, "baseline", "abc"), metrics(90));
+
+        ComparisonReport report = comparisonService.compare(leftId, rightId, "tester");
+        assertThat(report.verdict().compatible()).isTrue();
+        assertThat(report.verdict().warnings()).anyMatch(w -> w.contains("Workload parameter RATE differs"));
+    }
+
+    @Test
+    void compareNonSucceededStateIsBlocker() throws IOException {
+        String leftId = seedRun("QF-001", Map.of(), fingerprint(17, 1_000_000, "baseline", "abc"), metrics(100));
+        Map<String, Object> fp = fingerprint(17, 1_000_000, "baseline", "abc");
+        String rightId = seedRunFailed("QF-001", Map.of(), fp, metrics(90));
+
+        ComparisonReport report = comparisonService.compare(leftId, rightId, "tester");
+        assertThat(report.verdict().compatible()).isFalse();
+        assertThat(report.verdict().blockers()).anyMatch(b -> b.contains("Both runs must be SUCCEEDED"));
+    }
+
+    @Test
+    void compareDifferentPostgresPatchVersionIsWarning() throws IOException {
+        String leftId = seedRun("QF-001", Map.of(), fingerprint(17, 1_000_000, "baseline", "abc", "17.4"), metrics(100));
+        String rightId = seedRun("QF-001", Map.of(), fingerprint(17, 1_000_000, "baseline", "abc", "17.5"), metrics(90));
+
+        ComparisonReport report = comparisonService.compare(leftId, rightId, "tester");
+        assertThat(report.verdict().compatible()).isTrue();
+        assertThat(report.verdict().warnings()).anyMatch(w -> w.contains("PostgreSQL patch version differs"));
+    }
+
+    @Test
+    void compareDifferentDatabaseEngineIsBlocker() throws IOException {
+        String leftId = seedRun("QF-001", Map.of(), fingerprint(17, 1_000_000, "baseline", "abc", "17.4", "PostgreSQL"), metrics(100));
+        String rightId = seedRun("QF-001", Map.of(), fingerprint(17, 1_000_000, "baseline", "abc", "17.4", "MySQL"), metrics(90));
+
+        ComparisonReport report = comparisonService.compare(leftId, rightId, "tester");
+        assertThat(report.verdict().compatible()).isFalse();
+        assertThat(report.verdict().blockers()).anyMatch(b -> b.contains("Different database engines"));
+    }
+
+    @Test
+    void compareFingerprintUnavailableIsWarning() throws IOException {
+        Map<String, Object> fp = Map.of("available", false, "appCommit", "abc", "databaseProduct", "PostgreSQL",
+                "postgresVersion", "17.4", "postgresMajorVersion", 17, "rowCount", 1_000_000L,
+                "indexState", "baseline", "cpuCores", 4, "memoryMb", 4096);
+        String leftId = seedRun("QF-001", Map.of(), fp, metrics(100));
+        String rightId = seedRun("QF-001", Map.of(), fingerprint(17, 1_000_000, "baseline", "def"), metrics(90));
+
+        ComparisonReport report = comparisonService.compare(leftId, rightId, "tester");
+        assertThat(report.verdict().compatible()).isTrue();
+        assertThat(report.verdict().warnings()).anyMatch(w -> w.contains("fingerprint was unavailable"));
+    }
+
+    @Test
+    void compareDifferentCpuCoresIsWarning() throws IOException {
+        Map<String, Object> leftFp = fingerprint(17, 1_000_000, "baseline", "abc");
+        leftFp.put("cpuCores", 8);
+        Map<String, Object> rightFp = fingerprint(17, 1_000_000, "baseline", "abc");
+        rightFp.put("cpuCores", 4);
+        String leftId = seedRun("QF-001", Map.of(), leftFp, metrics(100));
+        String rightId = seedRun("QF-001", Map.of(), rightFp, metrics(90));
+
+        ComparisonReport report = comparisonService.compare(leftId, rightId, "tester");
+        assertThat(report.verdict().warnings()).anyMatch(w -> w.contains("Host cpuCores differs"));
+    }
+
+    @Test
+    void compareDifferentMemoryMbIsWarning() throws IOException {
+        Map<String, Object> leftFp = fingerprint(17, 1_000_000, "baseline", "abc");
+        leftFp.put("memoryMb", 8192);
+        Map<String, Object> rightFp = fingerprint(17, 1_000_000, "baseline", "abc");
+        rightFp.put("memoryMb", 4096);
+        String leftId = seedRun("QF-001", Map.of(), leftFp, metrics(100));
+        String rightId = seedRun("QF-001", Map.of(), rightFp, metrics(90));
+
+        ComparisonReport report = comparisonService.compare(leftId, rightId, "tester");
+        assertThat(report.verdict().warnings()).anyMatch(w -> w.contains("Host memoryMb differs"));
+    }
+
+    private String seedRunFailed(String templateId, Map<String, String> parameters,
+                                 Map<String, Object> fingerprint, Metrics metrics) throws IOException {
+        String runId = templateId.toLowerCase() + "-failed-" + System.nanoTime();
+        RunManifest manifest = new RunManifest(
+                runId, templateId, "1.0", "FAILED",
+                Instant.now().minusSeconds(30), Instant.now(), 30_000,
+                "completed", parameters, Map.of(), fingerprint,
+                "V1", String.valueOf(fingerprint.get("indexState")),
+                Map.of("cpuCores", 4, "memoryMb", 4096),
+                String.valueOf(fingerprint.get("appCommit")), Map.of(), List.of(), null);
+        manifests.write(manifest);
+        return runId;
     }
 }

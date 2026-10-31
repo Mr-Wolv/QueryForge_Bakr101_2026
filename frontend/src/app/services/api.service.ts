@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable, of } from 'rxjs';
-import { map, tap, shareReplay } from 'rxjs/operators';
+import { Observable } from 'rxjs';
+import { ApiClient } from './api-client.service';
+import { CacheService } from './cache.service';
+import { SseService } from './sse.service';
 
 export interface ExperimentTemplate {
   id: string;
@@ -116,154 +117,103 @@ export interface AuthSession {
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
-  private http = inject(HttpClient);
-  private base = (typeof window !== 'undefined' && (window as any).__QF_API_BASE__) || '/api';
-
-  private readonly cache = new Map<string, { expiry: number; value: any }>();
-  private readonly ttlMs = 30_000;
-
-  private readonly inflight = new Map<string, Observable<any>>();
-
-  private cached<T>(key: string, request: () => Observable<T>): Observable<T> {
-    const hit = this.cache.get(key);
-    if (hit && hit.expiry > Date.now()) {
-      return of(hit.value);
-    }
-    return request().pipe(
-      tap(v => this.cache.set(key, { expiry: Date.now() + this.ttlMs, value: v })),
-      shareReplay(1)
-    );
-  }
-
-  /** Drop cached run history so the next read reflects a just-mutated run. */
-  invalidateRuns(): void {
-    for (const key of Array.from(this.cache.keys())) {
-      if (key.startsWith('runs:')) this.cache.delete(key);
-    }
-    for (const key of Array.from(this.inflight.keys())) {
-      if (key.startsWith('run:')) this.inflight.delete(key);
-    }
-  }
-
-  private dedup<T>(key: string, request: () => Observable<T>): Observable<T> {
-    const existing = this.inflight.get(key);
-    if (existing) {
-      return existing as Observable<T>;
-    }
-    const obs = request().pipe(
-      tap({
-        finalize: () => this.inflight.delete(key)
-      }),
-      shareReplay(1)
-    );
-    this.inflight.set(key, obs);
-    return obs;
-  }
+  private apiClient = inject(ApiClient);
+  private cache = inject(CacheService);
+  private sse = inject(SseService);
 
   getExperiments(): Observable<ExperimentTemplate[]> {
-    return this.http.get<ExperimentTemplate[]>(`${this.base}/experiments`);
+    return this.apiClient.getExperiments<ExperimentTemplate>();
   }
 
   getExperiment(id: string): Observable<any> {
-    return this.http.get(`${this.base}/experiments/${id}`);
+    return this.apiClient.getExperiment<any>(id);
   }
 
   getReadiness(): Observable<Readiness> {
-    return this.http.get<Readiness>(`${this.base}/lab/readiness`);
+    return this.apiClient.getReadiness<Readiness>();
   }
 
   getAuthSession(): Observable<AuthSession> {
-    return this.http.get<AuthSession>(`${this.base}/auth/session`);
+    return this.apiClient.getAuthSession<AuthSession>();
   }
 
   logout(): Observable<void> {
-    return this.http.post<void>(`${this.base}/auth/logout`, {});
+    return this.apiClient.logout<void>();
   }
 
   getRuns(page: number = 0, size: number = 20): Observable<PageResponse<ExperimentRun>> {
-    return this.cached(`runs:${page}:${size}`, () =>
-      this.http.get<PageResponse<ExperimentRun>>(`${this.base}/runs?page=${page}&size=${size}`)
-    );
+    return this.apiClient.getRuns<PageResponse<ExperimentRun>>(page, size);
   }
 
   getRun(id: string): Observable<ExperimentRun> {
-    return this.dedup<ExperimentRun>(`run:${id}`, () =>
-      this.http.get<ExperimentRun>(`${this.base}/runs/${id}`)
-    );
+    return this.apiClient.getRun<ExperimentRun>(id);
   }
 
   getRunArtifacts(id: string): Observable<any[]> {
-    return this.http.get<any[]>(`${this.base}/runs/${id}/artifacts`);
+    return this.apiClient.getRunArtifacts<any[]>(id);
   }
 
   getArtifact(artifactId: string): Observable<Blob> {
-    return this.http.get(`${this.base}/artifacts/${artifactId}`, { responseType: 'blob' });
+    return this.apiClient.getArtifact(artifactId);
   }
 
   getArtifactMeta(artifactId: string): Observable<any> {
-    return this.http.get(`${this.base}/artifacts/${artifactId}/meta`);
+    return this.apiClient.getArtifactMeta<any>(artifactId);
   }
 
   getParsedPlan(artifactId: string, runId?: string): Observable<any> {
-    const url = runId
-      ? `${this.base}/runs/${encodeURIComponent(runId)}/artifacts/${encodeURIComponent(artifactId)}/plan`
-      : `${this.base}/artifacts/${encodeURIComponent(artifactId)}/plan`;
-    return this.http.get(url);
+    return this.apiClient.getParsedPlan<any>(artifactId, runId);
   }
 
   createRun(templateId: string, parameters: Record<string, string>, clientRequestId?: string): Observable<ExperimentRun> {
-    return this.http.post<ExperimentRun>(`${this.base}/runs`, { templateId, parameters, clientRequestId }).pipe(
-      tap({ next: () => this.invalidateRuns() })
-    );
+    return this.apiClient.createRun<ExperimentRun>(templateId, parameters, clientRequestId);
   }
 
   startRun(id: string): Observable<ExperimentRun> {
-    return this.http.post<ExperimentRun>(`${this.base}/runs/${id}/start`, {}).pipe(
-      tap({ next: () => this.invalidateRuns() })
-    );
+    return this.apiClient.startRun<ExperimentRun>(id);
   }
 
   cancelRun(id: string): Observable<{ id: string; state: string }> {
-    return this.http.post<{ id: string; state: string }>(`${this.base}/runs/${id}/cancel`, {}).pipe(
-      tap({ next: () => this.invalidateRuns() })
-    );
+    return this.apiClient.cancelRun<{ id: string; state: string }>(id);
   }
 
   rerunRun(id: string): Observable<ExperimentRun> {
-    return this.http.post<ExperimentRun>(`${this.base}/runs/${id}/rerun`, {}).pipe(
-      tap({ next: () => this.invalidateRuns() })
-    );
+    return this.apiClient.rerunRun<ExperimentRun>(id);
   }
 
   downloadArtifactsZip(id: string): Observable<Blob> {
-    return this.http.get(`${this.base}/runs/${id}/artifacts?format=zip`, { responseType: 'blob' });
+    return this.apiClient.downloadArtifactsZip(id);
   }
 
   compare(leftRunId: string, rightRunId: string): Observable<ComparisonResult> {
-    return this.http.post<ComparisonResult>(`${this.base}/comparisons`, { leftRunId, rightRunId });
+    return this.apiClient.compare<ComparisonResult>(leftRunId, rightRunId);
   }
 
   getComparisons(): Observable<ComparisonResult[]> {
-    return this.http.get<ComparisonResult[]>(`${this.base}/comparisons`);
+    return this.apiClient.getComparisons<ComparisonResult>();
   }
 
   getComparison(id: string): Observable<ComparisonResult> {
-    return this.http.get<ComparisonResult>(`${this.base}/comparisons/${id}`);
+    return this.apiClient.getComparison<ComparisonResult>(id);
   }
 
   exportComparison(id: string, format: 'markdown' | 'html' = 'markdown'): Observable<Blob> {
-    return this.http.get(`${this.base}/comparisons/${id}/export?format=${format}`, { responseType: 'blob' });
+    return this.apiClient.exportComparison(id, format);
   }
 
   getHints(id: string): Observable<Hint[]> {
-    return this.http.get<Hint[]>(`${this.base}/runs/${id}/hints`);
+    return this.apiClient.getHints<Hint>(id);
   }
 
   exportRun(id: string, format: 'markdown' | 'html' = 'markdown'): Observable<Blob> {
-    return this.http.get(`${this.base}/runs/${id}/export?format=${format}`, { responseType: 'blob' });
+    return this.apiClient.exportRun(id, format);
   }
 
   sseEvents(id: string): EventSource {
-    return new EventSource(`${this.base}/runs/${id}/events`);
+    return this.sse.sseEvents(id);
+  }
+
+  invalidateRuns(): void {
+    this.cache.invalidateRuns();
   }
 }

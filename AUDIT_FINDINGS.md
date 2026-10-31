@@ -245,17 +245,17 @@
 - [x] UX-017: Link empty state to `/experiments`
 
 ### Phase 4 — Maintainability & CI/CD (Week 4)
-- [ ] MAI-001: Split `ExperimentOrchestrator` into 4 focused classes
-- [ ] MAI-002: Split `K6RunnerAdapter` into generator/runner/parser
-- [ ] MAI-003: Split `ApiService` into client/cache/SSE services
-- [ ] MAI-012: Split `PlanParser` into tokenizer/tree builder/node factory
-- [ ] MAI-013: Extract comparison report rendering to template engine
-- [ ] MAI-020: Enable strict TypeScript config
-- [ ] CIC-010: Multi-OS CI matrix
-- [ ] CIC-011: Dependency caching
-- [ ] CIC-012: Playwright artifact upload on failure
-- [ ] CIC-017: CI job for `local-auth` profile
-- [ ] CIC-018: Accessibility audit in CI (axe-core)
+- [x] MAI-001: Split `ExperimentOrchestrator` into 4 focused classes
+- [x] MAI-002: Split `K6RunnerAdapter` into generator/runner/parser
+- [x] MAI-003: Split `ApiService` into client/cache/SSE services
+- [x] MAI-012: Split `PlanParser` into tokenizer/tree builder/node factory
+- [x] MAI-013: Extract comparison report rendering to template engine
+- [x] MAI-020: Enable strict TypeScript config
+- [x] CIC-010: Multi-OS CI matrix
+- [x] CIC-011: Dependency caching
+- [x] CIC-012: Playwright artifact upload on failure
+- [x] CIC-017: CI job for `local-auth` profile
+- [x] CIC-018: Accessibility audit in CI (axe-core)
 
 ### Phase 5 — Portfolio Polish (Week 5)
 - [ ] MAI-017: ADRs for all key architectural decisions
