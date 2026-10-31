@@ -288,4 +288,8 @@ This document will be continuously updated as we:
 3. Re-audit after changes
 4. Track progress toward 95%+ completeness
 
-**Current State:** Phases 1–3 complete (Security, Reproducibility, Performance, Portability, UX). Phase 4 (Maintainability & CI/CD) in progress. Phase 6 (Quality Assurance & Positive Metrics) added as final target.
+### Phase 7 — Production Readiness & Live Validation (Week 7)
+- [ ] Performance metrics: memory/disk/CPU profiling and budgets (heap, RSS, disk usage, GC) under benchmark load
+- [ ] Docs alignment with codebase: README, operations, API docs verified against actual code and endpoints
+- [ ] GitHub clean public repo readiness: no secrets, LICENSE, CONTRIBUTING, CODE_OF_CONDUCT, issue/PR templates, clean history
+- [ ] Brute live-stack application testing: end-to-end against real running stack (backend + frontend + Keycloak + Postgres), Playwright + k6, cross-service attribution
