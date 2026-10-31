@@ -1,11 +1,11 @@
-# Local development only. Set QF_DB_PASSWORD to a strong secret before sharing this stack.
+# Local development only. QF_DB_PASSWORD and QF_KEYCLOAK_ADMIN_PASSWORD MUST be set before starting.
 services:
   db:
     image: postgres:17
     environment:
       POSTGRES_DB: queryforge
       POSTGRES_USER: queryforge
-      POSTGRES_PASSWORD: ${QF_DB_PASSWORD:-queryforge}
+      POSTGRES_PASSWORD: ${QF_DB_PASSWORD}
     command: >
       postgres -c shared_preload_libraries=pg_stat_statements
                -c pg_stat_statements.track=all
@@ -36,7 +36,7 @@ services:
       SPRING_PROFILES_ACTIVE: ${QF_SPRING_PROFILE:-default}
       DB_URL: jdbc:postgresql://db:5432/queryforge
       DB_USER: queryforge
-      DB_PASSWORD: ${QF_DB_PASSWORD:-queryforge}
+      DB_PASSWORD: ${QF_DB_PASSWORD}
       SERVER_ADDRESS: 0.0.0.0
       QF_WEB_PORT: ${QF_WEB_PORT:-8080}
     ports:
@@ -45,6 +45,8 @@ services:
       - ./benchmark/results:/app/benchmark/results
       - ./benchmark/runs:/app/benchmark/runs
       - ./docs/experiments:/app/docs/experiments:ro
+    secrets:
+      - qf_oidc_client_secret
     healthcheck:
       # The runtime image has no curl/wget; bash /dev/tcp verifies the app port
       # (the actuator lives on 8081 inside the container). /api/auth/session is
@@ -84,7 +86,7 @@ services:
     command: start-dev --import-realm
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${QF_KEYCLOAK_ADMIN:-admin}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${QF_KEYCLOAK_ADMIN_PASSWORD:-admin-local-only}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${QF_KEYCLOAK_ADMIN_PASSWORD}
       KC_PROXY_HEADERS: xforwarded
       # Keycloak is exposed browser-side under the /id/ path (same-origin with the SPA).
       # Tell it its relative path so every browser-facing URL keeps the /id/ prefix;
@@ -121,7 +123,7 @@ services:
     environment:
       DATA_SOURCE_URI: db:5432/queryforge?sslmode=disable
       DATA_SOURCE_USER: queryforge
-      DATA_SOURCE_PASS: ${QF_DB_PASSWORD:-queryforge}
+      DATA_SOURCE_PASS: ${QF_DB_PASSWORD}
     depends_on:
       db:
         condition: service_healthy
@@ -172,3 +174,7 @@ volumes:
   keycloakdata:
   prometheus_data:
   alertmanager_data:
+
+secrets:
+  qf_oidc_client_secret:
+    file: ./secrets/qf_oidc_client_secret.txt
