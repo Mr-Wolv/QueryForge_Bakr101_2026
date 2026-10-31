@@ -42,8 +42,10 @@ public class RunHistoryController {
     }
 
     @GetMapping("/template/{templateId}")
-    public List<ExperimentRun> listByTemplate(@PathVariable String templateId) {
-        return runs.findByTemplate(templateId);
+    public PageResponse<ExperimentRun> listByTemplate(@PathVariable String templateId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return runs.findByTemplate(templateId, page, size);
     }
 
     @GetMapping("/{id}/artifacts")

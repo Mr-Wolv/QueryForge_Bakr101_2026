@@ -15,6 +15,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/artifacts")
+@Deprecated
 public class ArtifactController {
 
     private final ArtifactService artifacts;

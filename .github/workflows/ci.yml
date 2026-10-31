@@ -139,3 +139,18 @@ jobs:
         uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: high
+
+  multi-arch-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build multi-arch images (dry-run, no push)
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --load \
+            --tag queryforge-backend:ci .

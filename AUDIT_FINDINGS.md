@@ -217,17 +217,19 @@
 - [x] SEC-017, SEC-018: Remove weak defaults from Compose (Keycloak admin, PG password)
 - [x] SEC-001, SEC-011: Remove secrets from repo; require env vars / Docker secrets
 - [x] SEC-005: Add authorization to SSE endpoint (`@PreAuthorize`)
-- [x] SEC-006: Prefer run-scoped artifact endpoint; deprecate global
+- [x] SEC-006: Prefer run-scoped artifact endpoint; deprecate global (`@Deprecated` + Deprecation header)
 - [x] SEC-010: Add OWASP Dependency Check + npm audit to CI
 - [x] REP-001, REP-007: Enforce deterministic seeds in data gen + k6
 - [x] REP-004: Full environment fingerprint in run manifest
-- [ ] REP-005: Pin Docker images to SHA digests
+- [x] REP-005: Pin Docker images to SHA digests
 
 ### Phase 2 — Performance & Portability (Week 2)
 - [x] PER-009: Fix N+1 in run history — DB-level pagination with `Pageable`
+- [x] PER-001, PER-002: N+1 N/A (runs are file-based; `findByTemplate` + `listByTemplate` now paginated, dead `findAll()` removed)
 - [x] PER-006: Tune HikariCP pool for benchmark concurrency
-- [x] POR-001, POR-008: Make base URLs fully configurable (`QF_BASE_URL`)
+- [x] POR-001, POR-008: Make base URLs fully configurable (`__QF_API_BASE__`)
 - [x] POR-006: Add `.gitattributes` for LF normalization
+- [x] POR-007: Add multi-arch Docker build job to CI (buildx, linux/amd64+arm64)
 - [x] POR-012: Create `.env.example` with all `QF_*` vars
 - [ ] PER-001, PER-002: Fix N+1 with `@EntityGraph` / JOIN FETCH (N/A — runs are file-based, artifacts eagerly loaded in manifests)
 - [ ] POR-007: Add multi-arch Docker builds

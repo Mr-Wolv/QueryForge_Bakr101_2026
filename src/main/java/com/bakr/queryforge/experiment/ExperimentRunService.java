@@ -5,8 +5,6 @@ import com.bakr.queryforge.artifact.RunManifest;
 import com.bakr.queryforge.service.PageResponse;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -27,17 +25,6 @@ public class ExperimentRunService {
     public ExperimentRunService(ExperimentTemplateService templates, ExperimentOrchestrator orchestrator) {
         this.templates = templates;
         this.orchestrator = orchestrator;
-    }
-
-    public List<ExperimentRun> findAll() {
-        Map<String, ExperimentRun> merged = new LinkedHashMap<>();
-        for (ExperimentRun run : orchestrator.loadAll()) {
-            merged.put(run.id(), run);
-        }
-        for (ExperimentRun run : templates.loadRuns()) {
-            merged.putIfAbsent(run.id(), run);
-        }
-        return new ArrayList<>(merged.values());
     }
 
     public PageResponse<ExperimentRun> findPage(String state, int page, int size) {
@@ -62,10 +49,19 @@ public class ExperimentRunService {
                         .findFirst());
     }
 
-    public List<ExperimentRun> findByTemplate(String templateId) {
-        return findAll().stream()
-                .filter(r -> r.templateId().equals(templateId))
+    public PageResponse<ExperimentRun> findByTemplate(String templateId, int page, int size) {
+        int safePage = Math.max(0, page);
+        int safeSize = Math.min(100, Math.max(1, size));
+        List<ExperimentRun> all = orchestrator.loadAll(safePage, safeSize)
+                .stream()
+                .filter(r -> templateId.equals(r.templateId()))
                 .toList();
+        long total = orchestrator.countAll();
+        int from = safePage * safeSize;
+        List<ExperimentRun> content = from >= total
+                ? List.of()
+                : all;
+        return PageResponse.of(content, safePage, safeSize, total);
     }
 
     public Optional<RunManifest> manifest(String runId) {
