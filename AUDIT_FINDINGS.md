@@ -278,11 +278,8 @@
 - [ ] Feature coverage mapping: traceability matrix — every audit finding + requirement has ≥1 test
 - [ ] E2E coverage (bonus): instrumented backend + frontend, run Playwright against real stack, merge reports (cross-service attribution noted as messy — treat as bonus)
 
----
-
-
 ### Phase 7 — Production Readiness & Live Validation (Week 7)
 - [ ] Performance metrics: memory/disk/CPU profiling and budgets (heap, RSS, disk usage, GC) under benchmark load
 - [ ] Docs alignment with codebase: README, operations, API docs verified against actual code and endpoints
 - [ ] GitHub clean public repo readiness: no secrets, LICENSE, CONTRIBUTING, CODE_OF_CONDUCT, issue/PR templates, clean history
-- [ ] Brute live-stack application testing: end-to-end against real running stack (backend + frontend + Keycloak + Postgres), Playwright + k6, cross-service attribution
+- [ ] Brute live-stack application testing: end-to-end against real running stack (backend + frontend + Keycloak + Postgres), Playwright + k6, cross-service attribution; tests must exercise EVERY possible action in the live system (not just documented behavior) to surface defects
