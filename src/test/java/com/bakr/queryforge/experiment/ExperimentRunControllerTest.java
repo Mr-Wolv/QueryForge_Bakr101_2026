@@ -1,16 +1,23 @@
 package com.bakr.queryforge.experiment;
 
 import com.bakr.queryforge.artifact.ArtifactService;
+import com.bakr.queryforge.artifact.RunArtifact;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -89,6 +96,64 @@ class ExperimentRunControllerUnitTest {
 
         assertThatThrownBy(() -> controller.cancel("run-1"))
                 .isInstanceOf(RunConflictException.class);
+    }
+
+    @Test
+    void rerunCreatesNewRunWithSameTemplateAndParameters() {
+        ExperimentRun original = run("run-1", "SUCCEEDED");
+        ExperimentRun created = run("run-2", "QUEUED");
+        Mockito.when(runs.findById("run-1")).thenReturn(Optional.of(original));
+        Mockito.when(runs.create("QF-001", Map.of(), null)).thenReturn(created);
+
+        ResponseEntity<ExperimentRun> resp = controller.rerun("run-1");
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(resp.getBody().id()).isEqualTo("run-2");
+        assertThat(resp.getBody().state()).isEqualTo("QUEUED");
+        Mockito.verify(runs).create("QF-001", Map.of(), null);
+    }
+
+    @Test
+    void rerunRejectsUnknownRun() {
+        Mockito.when(runs.findById("missing")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> controller.rerun("missing"))
+                .isInstanceOf(com.bakr.queryforge.service.NotFoundException.class);
+    }
+
+    @Test
+    void artifactsZipReturnsArchive(@TempDir java.nio.file.Path temp) throws IOException {
+        java.nio.file.Path artifact = temp.resolve("metrics.json");
+        java.nio.file.Files.writeString(artifact, "{\"p50\": 12}");
+        RunArtifact entry = new RunArtifact("metrics", "application/json",
+                artifact.toString(), "Iteration metrics");
+
+        Mockito.when(runs.findById("run-1")).thenReturn(Optional.of(run("run-1", "SUCCEEDED")));
+        Mockito.when(runs.artifacts("run-1")).thenReturn(List.of(entry));
+        Mockito.when(artifactService.resolveForRun("run-1", "metrics"))
+                .thenReturn(Optional.of(artifact));
+
+        ResponseEntity<byte[]> resp = controller.artifactsZip("run-1");
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resp.getHeaders().getContentType()).isEqualTo(MediaType.valueOf("application/zip"));
+        assertThat(resp.getHeaders().get(HttpHeaders.CONTENT_DISPOSITION))
+                .containsOnlyOnce("attachment; filename=\"run-1-artifacts.zip\"");
+
+        try (ZipInputStream zis = new ZipInputStream(new java.io.ByteArrayInputStream(resp.getBody()))) {
+            ZipEntry entryRead = zis.getNextEntry();
+            assertThat(entryRead.getName()).isEqualTo("metrics.json");
+            String content = new String(zis.readAllBytes());
+            assertThat(content).isEqualTo("{\"p50\": 12}");
+        }
+    }
+
+    @Test
+    void artifactsZipRejectsUnknownRun() {
+        Mockito.when(runs.findById("missing")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> controller.artifactsZip("missing"))
+                .isInstanceOf(com.bakr.queryforge.service.NotFoundException.class);
     }
 
     @Test
