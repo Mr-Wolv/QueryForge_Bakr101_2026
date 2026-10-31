@@ -212,7 +212,7 @@
 ## PRIORITIZED ACTION PLAN (95%+ Target)
 
 ### Phase 1 — Security & Reproducibility (Week 1)
-- [ ] SEC-012: Re-enable CSRF in `LocalSecurityConfig` (dev profile)
+- [x] SEC-012: Re-enable CSRF in `LocalSecurityConfig` (dev profile)
 - [ ] SEC-013: Create dedicated `ROLE_RUNNER` for benchmark runner (minimal perms)
 - [ ] SEC-017, SEC-018: Remove weak defaults from Compose (Keycloak admin, PG password)
 - [ ] SEC-001, SEC-011: Remove secrets from repo; require env vars / Docker secrets
