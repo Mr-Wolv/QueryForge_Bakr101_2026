@@ -1,7 +1,7 @@
 # Local development only. QF_DB_PASSWORD and QF_KEYCLOAK_ADMIN_PASSWORD MUST be set before starting.
 services:
   db:
-    image: postgres:17
+    image: postgres@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
     environment:
       POSTGRES_DB: queryforge
       POSTGRES_USER: queryforge
@@ -82,7 +82,7 @@ services:
   # versioned and contains deliberately local-only viewer/operator credentials.
   keycloak:
     profiles: ["authenticated"]
-    image: quay.io/keycloak/keycloak:26.0.7
+    image: quay.io/keycloak/keycloak@sha256:32d2eb0f84aaf85b3e3afef544d5b25fcd40a791d62374f327a0cb5ca9aa1da5
     command: start-dev --import-realm
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${QF_KEYCLOAK_ADMIN:-admin}
@@ -106,7 +106,7 @@ services:
   # Local SMTP capture UI; it never relays mail beyond this Compose network.
   mailpit:
     profiles: ["monitoring"]
-    image: axllent/mailpit:v1.26
+    image: axllent/mailpit@sha256:cc7251d2f55ca5271a4015012e1075ea7e6391120cca626362d8f5b747de2c49
     ports:
       - "127.0.0.1:${QF_MAILPIT_PORT:-8025}:8025"
     healthcheck:
@@ -119,7 +119,7 @@ services:
   # the previous Prometheus config referenced a service that was never defined.
   postgres-exporter:
     profiles: ["monitoring"]
-    image: prometheuscommunity/postgres-exporter:v0.17.1
+    image: prometheuscommunity/postgres-exporter@sha256:9fca39a4307092387b7de884bed4b62205cb88a6a5fdb423b9a70ea80b34efb3
     environment:
       DATA_SOURCE_URI: db:5432/queryforge?sslmode=disable
       DATA_SOURCE_USER: queryforge
@@ -130,7 +130,7 @@ services:
 
   prometheus:
     profiles: ["monitoring"]
-    image: prom/prometheus:v3.5.0
+    image: prom/prometheus@sha256:8672a850efe2f9874702406c8318704edb363587f8c2ca88586b4c8fdb5cea24
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -146,7 +146,7 @@ services:
 
   alertmanager:
     profiles: ["monitoring"]
-    image: quay.io/prometheus/alertmanager:v0.28.1
+    image: quay.io/prometheus/alertmanager@sha256:220da6995a919b9ee6e0d3da7ca5f09802f3088007af56be22160314d2485b54
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
@@ -161,7 +161,7 @@ services:
 
   data-generator:
     profiles: ["tools"]
-    image: python:3.13-slim
+    image: python@sha256:aaf08c5490d52cd92bc27142a5215b1e47355a5eaf9adfad2a0fbc022d0b5490
     working_dir: /workspace
     entrypoint: ["python", "scripts/generate-data.py"]
     command: ["10000", "--csv", "benchmark/seed/products_seed42.csv"]
