@@ -43,6 +43,10 @@ public class RunPersistenceService {
     }
 
     public boolean hasAny() {
-        return repo.count() > 0;
+        try {
+            return repo.count() > 0;
+        } catch (Exception e) {
+            return false;
+        }
     }
 }
