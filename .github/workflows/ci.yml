@@ -28,6 +28,9 @@ jobs:
       - name: Unit + functional tests (Testcontainers)
         run: mvn -B -ntp test
 
+      - name: OWASP Dependency Check
+        run: mvn -B -ntp org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7 -DnvdApiKey=${{ secrets.NVD_API_KEY }} -DnvdApiRateLimit=5 -DdataDirectory=/tmp/dc-data
+
       - name: Package (skips tests, already run)
         run: mvn -B -ntp -DskipTests package
 
