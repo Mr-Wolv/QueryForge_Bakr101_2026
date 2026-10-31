@@ -31,7 +31,7 @@ class ComparisonControllerTest {
         ExperimentOrchestrator orchestrator = new ExperimentOrchestrator(
                 new ExperimentTemplateService(), manifests, fingerprints,
                 new RunEventBus(), List.of());
-        ExperimentRunService runs = new ExperimentRunService(new ExperimentTemplateService(), orchestrator);
+        ExperimentRunService runs = new ExperimentRunService(new ExperimentTemplateService(), orchestrator, null);
         ComparisonService comparisonService = new ComparisonService(runs, tempDir.resolve("comparisons"));
         return new ComparisonController(comparisonService, runs);
     }

@@ -39,7 +39,7 @@ class ComparisonServiceTest {
                 new EnvironmentFingerprintService(),
                 new RunEventBus(),
                 List.of());
-        runs = new ExperimentRunService(new ExperimentTemplateService(), orchestrator);
+        runs = new ExperimentRunService(new ExperimentTemplateService(), orchestrator, null);
         comparisonService = new ComparisonService(runs, tempDir.resolve("comparisons"));
         exportService = new ExportService(runs, new ExperimentTemplateService());
     }

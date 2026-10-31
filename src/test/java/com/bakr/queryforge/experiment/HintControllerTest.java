@@ -26,7 +26,7 @@ class HintControllerTest {
         ExperimentOrchestrator orchestrator = new ExperimentOrchestrator(
                 new ExperimentTemplateService(), manifests,
                 new EnvironmentFingerprintService(), new RunEventBus(), List.of());
-        runs = new ExperimentRunService(new ExperimentTemplateService(), orchestrator);
+        runs = new ExperimentRunService(new ExperimentTemplateService(), orchestrator, null);
         ArtifactService artifactService = new ArtifactService();
         HintService hintService = new HintService(artifactService);
         c = new HintController(runs, artifactService, hintService);

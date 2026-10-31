@@ -21,13 +21,18 @@ public class ExperimentRunService {
 
     private final ExperimentTemplateService templates;
     private final ExperimentOrchestrator orchestrator;
+    private final RunPersistenceService persistence;
 
-    public ExperimentRunService(ExperimentTemplateService templates, ExperimentOrchestrator orchestrator) {
+    public ExperimentRunService(ExperimentTemplateService templates, ExperimentOrchestrator orchestrator, RunPersistenceService persistence) {
         this.templates = templates;
         this.orchestrator = orchestrator;
+        this.persistence = persistence;
     }
 
     public PageResponse<ExperimentRun> findPage(String state, int page, int size) {
+        if (persistence != null && persistence.hasAny()) {
+            return persistence.findPage(state, page, size);
+        }
         int safePage = Math.max(0, page);
         int safeSize = Math.min(100, Math.max(1, size));
         List<ExperimentRun> all = orchestrator.loadAll(safePage, safeSize);
@@ -75,7 +80,9 @@ public class ExperimentRunService {
     }
 
     public ExperimentRun create(String templateId, Map<String, String> parameters, String clientRequestId) {
-        return orchestrator.createRun(templateId, parameters, clientRequestId);
+        ExperimentRun run = orchestrator.createRun(templateId, parameters, clientRequestId);
+        if (persistence != null) persistence.save(run);
+        return run;
     }
 
     public ExperimentRun start(String runId) {
