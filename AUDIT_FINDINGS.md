@@ -224,13 +224,13 @@
 - [ ] REP-005: Pin Docker images to SHA digests
 
 ### Phase 2 — Performance & Portability (Week 2)
-- [ ] PER-009: Fix N+1 in run history — DB-level pagination with `Pageable`
-- [ ] PER-001, PER-002: Fix N+1 with `@EntityGraph` / JOIN FETCH
-- [ ] PER-006: Tune HikariCP pool for benchmark concurrency
-- [ ] POR-001, POR-008: Make base URLs fully configurable (`QF_BASE_URL`)
-- [ ] POR-006: Add `.gitattributes` for LF normalization
+- [x] PER-009: Fix N+1 in run history — DB-level pagination with `Pageable`
+- [x] PER-006: Tune HikariCP pool for benchmark concurrency
+- [x] POR-001, POR-008: Make base URLs fully configurable (`QF_BASE_URL`)
+- [x] POR-006: Add `.gitattributes` for LF normalization
+- [x] POR-012: Create `.env.example` with all `QF_*` vars
+- [ ] PER-001, PER-002: Fix N+1 with `@EntityGraph` / JOIN FETCH (N/A — runs are file-based, artifacts eagerly loaded in manifests)
 - [ ] POR-007: Add multi-arch Docker builds
-- [ ] POR-012: Create `.env.example` with all `QF_*` vars
 
 ### Phase 3 — UX Polish (Week 3)
 - [ ] UX-001: Enable Keycloak registration + forgot password + custom theme
