@@ -30,7 +30,7 @@ public class ExperimentRunService {
     }
 
     public PageResponse<ExperimentRun> findPage(String state, int page, int size) {
-        if (persistence != null && persistence.hasAny()) {
+        if (persistence != null) {
             return persistence.findPage(state, page, size);
         }
         int safePage = Math.max(0, page);
@@ -48,6 +48,10 @@ public class ExperimentRunService {
     }
 
     public Optional<ExperimentRun> findById(String id) {
+        if (persistence != null) {
+            return persistence.findById(id)
+                    .or(() -> java.util.Optional.empty());
+        }
         return orchestrator.findById(id)
                 .or(() -> templates.loadRuns().stream()
                         .filter(r -> r.id().equals(id))
@@ -55,6 +59,16 @@ public class ExperimentRunService {
     }
 
     public PageResponse<ExperimentRun> findByTemplate(String templateId, int page, int size) {
+        if (persistence != null) {
+            int safePage = Math.max(0, page);
+            int safeSize = Math.min(100, Math.max(1, size));
+            var all = persistence.findByTemplate(templateId);
+            long total = all.size();
+            int from = Math.min(safePage * safeSize, all.size());
+            int to = Math.min(from + safeSize, all.size());
+            List<ExperimentRun> content = all.subList(from, to);
+            return PageResponse.of(content, safePage, safeSize, total);
+        }
         int safePage = Math.max(0, page);
         int safeSize = Math.min(100, Math.max(1, size));
         List<ExperimentRun> all = orchestrator.loadAll(safePage, safeSize)

@@ -24,24 +24,42 @@ public class RunPersistenceService {
     public PageResponse<ExperimentRun> findPage(String state, int page, int size) {
         int safePage = Math.max(0, page);
         int safeSize = Math.min(100, Math.max(1, size));
-        long total;
-        List<com.bakr.queryforge.entity.ExperimentRunEntity> slice;
-        if (state == null || state.isBlank()) {
-            var p = repo.findAll(PageRequest.of(safePage, safeSize,
-                    Sort.by(Sort.Direction.DESC, "startedAt")));
-            total = p.getTotalElements();
-            slice = p.getContent();
-        } else {
-            var all = repo.findByState(state);
-            total = all.size();
-            int from = Math.min(safePage * safeSize, all.size());
-            int to = Math.min(from + safeSize, all.size());
-            slice = all.subList(from, to);
+        try {
+            long total;
+            List<com.bakr.queryforge.entity.ExperimentRunEntity> slice;
+            if (state == null || state.isBlank()) {
+                var p = repo.findAll(PageRequest.of(safePage, safeSize,
+                        Sort.by(Sort.Direction.DESC, "startedAt")));
+                total = p.getTotalElements();
+                slice = p.getContent();
+            } else {
+                var all = repo.findByState(state);
+                total = all.size();
+                int from = Math.min(safePage * safeSize, all.size());
+                int to = Math.min(from + safeSize, all.size());
+                slice = all.subList(from, to);
+            }
+            List<ExperimentRun> content = slice.stream().map(ExperimentRunMapper::toRecord).toList();
+            return PageResponse.of(content, safePage, safeSize, total);
+        } catch (Exception e) {
+            return PageResponse.of(List.of(), safePage, safeSize, 0);
         }
-        List<ExperimentRun> content = slice.stream().map(ExperimentRunMapper::toRecord).toList();
-        return PageResponse.of(content, safePage, safeSize, total);
     }
 
+    public List<ExperimentRun> findByTemplate(String templateId) {
+        try {
+            return repo.findByTemplateId(templateId).stream().map(ExperimentRunMapper::toRecord).toList();
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+    public java.util.Optional<ExperimentRun> findById(String id) {
+        try {
+            return repo.findById(id).map(ExperimentRunMapper::toRecord);
+        } catch (Exception e) {
+            return java.util.Optional.empty();
+        }
+    }
     public boolean hasAny() {
         try {
             return repo.count() > 0;
