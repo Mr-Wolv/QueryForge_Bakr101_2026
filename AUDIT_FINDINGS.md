@@ -231,8 +231,6 @@
 - [x] POR-006: Add `.gitattributes` for LF normalization
 - [x] POR-007: Add multi-arch Docker build job to CI (buildx, linux/amd64+arm64)
 - [x] POR-012: Create `.env.example` with all `QF_*` vars
-- [ ] PER-001, PER-002: Fix N+1 with `@EntityGraph` / JOIN FETCH (N/A — runs are file-based, artifacts eagerly loaded in manifests)
-- [ ] POR-007: Add multi-arch Docker builds
 
 ### Phase 3 — UX Polish (Week 3)
 - [ ] UX-001: Enable Keycloak registration + forgot password + custom theme
