@@ -51,11 +51,13 @@ fi
 
 # OS specific support.  $var _must_ be set to either true or false.
 cygwin=false;
+msys=false;
 darwin=false;
 mingw=false
 case "$(uname)" in
   CYGWIN*) cygwin=true ;;
   MINGW*) mingw=true;;
+  MSYS*) msys=true;;
   Darwin*) darwin=true
     # Use /usr/libexec/java_home if available, otherwise fall back to /Library/Java/Home
     # See https://developer.apple.com/library/mac/qa/qa1170/_index.html
@@ -235,6 +237,10 @@ else
           javaSource=$(cygpath --path --windows "$javaSource")
           javaClass=$(cygpath --path --windows "$javaClass")
         fi
+        if $msys; then
+          javaSource=$(cygpath --path --windows "$javaSource")
+          javaClass=$(cygpath --path --windows "$javaClass")
+        fi
         if [ -e "$javaSource" ]; then
             if [ ! -e "$javaClass" ]; then
                 log " - Compiling MavenWrapperDownloader.java ..."
@@ -284,6 +290,15 @@ MAVEN_OPTS="$(concat_lines "$MAVEN_PROJECTBASEDIR/.mvn/jvm.config") $MAVEN_OPTS"
 
 # For Cygwin, switch paths to Windows format before running java
 if $cygwin; then
+  [ -n "$JAVA_HOME" ] &&
+    JAVA_HOME=$(cygpath --path --windows "$JAVA_HOME")
+  [ -n "$CLASSPATH" ] &&
+    CLASSPATH=$(cygpath --path --windows "$CLASSPATH")
+  [ -n "$MAVEN_PROJECTBASEDIR" ] &&
+    MAVEN_PROJECTBASEDIR=$(cygpath --path --windows "$MAVEN_PROJECTBASEDIR")
+fi
+# For MSYS, switch paths to Windows format before running java
+if $msys; then
   [ -n "$JAVA_HOME" ] &&
     JAVA_HOME=$(cygpath --path --windows "$JAVA_HOME")
   [ -n "$CLASSPATH" ] &&

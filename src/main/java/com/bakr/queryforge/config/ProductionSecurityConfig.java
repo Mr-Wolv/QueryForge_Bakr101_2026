@@ -39,6 +39,11 @@ public class ProductionSecurityConfig {
     };
 
     @Bean
+    ObjectMapper objectMapper() {
+        return new ObjectMapper();
+    }
+
+    @Bean
     @Order(1)
     SecurityFilterChain productionSecurityFilterChain(
             HttpSecurity http,

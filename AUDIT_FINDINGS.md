@@ -267,6 +267,7 @@
 - [x] POR-011: Sync Java version in README (25 not 21+)
 
 ### Phase 6 — Quality Assurance & Positive Metrics (Week 6)
+- [x] **Postgres integration test environment restored** — `PostgresIntegrationSmokeTest` was failing because `spring-boot-starter-flyway` was missing from `pom.xml` (only `flyway-core` was present, so Flyway auto-configuration never loaded), and `spring.flyway.locations=filesystem:./db/flyway` did not resolve migrations in the test context. Fixed by adding `spring-boot-starter-flyway` and explicitly setting the absolute migration location in the test's `@DynamicPropertySource`. Full `mvn clean verify` passes **209/209**.
 - [ ] Wiring & dead-code audit (TOP PRIORITY, CODEBASE-WIDE, PRODUCTION + LOCAL DEV): low-risk dead-code / technical-debt / unwired guardrail — every class, component, service, bean, migration, and frontend service across the entire codebase (production AND local development paths) should have a concrete, exercised use; minimize orphaned/dead code; remove or wire anything unused where low-risk; precise, pragmatic code-quality evaluation (perfect zero is unrealistic at this scale)
 - [ ] Backend ≥95% line coverage (JaCoCo) — gap-fix: `ExperimentOrchestrator.LogTailer`, `CompareRequest`, `ExperimentRunRequest`, `PlanParser.Frame`, `ComparisonController`, `ArtifactController`, `RunEventBus`, `RunHistoryController`, `HintController`
 - [ ] Frontend ≥95% line coverage (Istanbul via `ng test --coverage`) — gap-fix: `skeleton-card` 11%, `toast` 33%, `runs` 42%, `latency-chart` 42%, `run-detail` 62%

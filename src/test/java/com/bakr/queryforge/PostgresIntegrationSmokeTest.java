@@ -56,10 +56,12 @@ class PostgresIntegrationSmokeTest {
         registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
         registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
-        registry.add("spring.flyway.locations",
-                () -> "filesystem:" + Path.of("db", "flyway").toAbsolutePath().normalize());
+        // registry.add("spring.flyway.locations",
+        //         () -> "filesystem:" + Path.of("db", "flyway").toAbsolutePath().normalize());
         registry.add("spring.flyway.baseline-on-migrate", () -> true);
         registry.add("spring.flyway.baseline-version", () -> "2");
+        registry.add("spring.flyway.locations",
+                () -> "filesystem:" + Path.of("db", "flyway").toAbsolutePath().normalize());
         registry.add("spring.sql.init.mode", () -> "never");
     }
 

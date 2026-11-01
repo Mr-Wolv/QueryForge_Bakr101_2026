@@ -6,7 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -52,8 +52,7 @@ class ProductApiFunctionalTest {
     @LocalServerPort
     int port;
 
-    @Autowired
-    TestRestTemplate rest;
+    RestTemplate rest;
 
     @Autowired
     JdbcTemplate jdbc;
@@ -65,6 +64,13 @@ class ProductApiFunctionalTest {
 
     @BeforeEach
     void setup() throws Exception {
+        rest = new RestTemplate();
+        rest.setErrorHandler(new org.springframework.web.client.DefaultResponseErrorHandler() {
+            @Override
+            public boolean hasError(org.springframework.http.client.ClientHttpResponse response) throws java.io.IOException {
+                return false;
+            }
+        });
         // Drop and recreate schema (H2 in-memory DB persists across test methods via connection pool)
         try (var in = new ClassPathResource("schema/products.sql").getInputStream()) {
             String sql = new String(in.readAllBytes());
@@ -102,12 +108,13 @@ class ProductApiFunctionalTest {
     }
 
     @Test
-    void pointLookupReturnsRow() {
+    void pointLookupReturnsRow() throws Exception {
         String expectedSku = jdbc.queryForObject("SELECT sku FROM products WHERE id = 1", String.class);
-        var resp = rest.getForEntity(url("/api/products/1"), JsonNode.class);
+        var resp = rest.getForEntity(url("/api/products/1"), String.class);
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        assertThat(resp.getBody().get("sku").asText()).isEqualTo(expectedSku);
-        assertThat(resp.getBody().get("id").asLong()).isEqualTo(1L);
+        JsonNode body = json.readTree(resp.getBody());
+        assertThat(body.get("sku").asText()).isEqualTo(expectedSku);
+        assertThat(body.get("id").asLong()).isEqualTo(1L);
     }
 
     @Test
@@ -214,11 +221,12 @@ class ProductApiFunctionalTest {
     }
 
     @Test
-    void categoriesListed() {
-        var resp = rest.getForEntity(url("/api/categories"), JsonNode.class);
+    void categoriesListed() throws Exception {
+        var resp = rest.getForEntity(url("/api/categories"), String.class);
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        JsonNode body = json.readTree(resp.getBody());
         Set<String> names = new HashSet<>();
-        resp.getBody().forEach(n -> names.add(n.get("name").asText()));
+        body.forEach(n -> names.add(n.get("name").asText()));
         assertThat(names).contains("electronics", "clothing", "home", "sports", "books");
     }
 }
