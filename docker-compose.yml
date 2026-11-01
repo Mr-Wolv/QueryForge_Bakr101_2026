@@ -1,11 +1,11 @@
-# Local development only. QF_DB_PASSWORD and QF_KEYCLOAK_ADMIN_PASSWORD MUST be set before starting.
+# Local development only. Set database and Keycloak bootstrap credentials before starting.
 services:
   db:
     image: postgres@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
     environment:
       POSTGRES_DB: queryforge
       POSTGRES_USER: queryforge
-      POSTGRES_PASSWORD: ${QF_DB_PASSWORD}
+      POSTGRES_PASSWORD: ${QF_DB_PASSWORD:?Set QF_DB_PASSWORD}
     command: >
       postgres -c shared_preload_libraries=pg_stat_statements
                -c pg_stat_statements.track=all
@@ -36,9 +36,10 @@ services:
       SPRING_PROFILES_ACTIVE: ${QF_SPRING_PROFILE:-default}
       DB_URL: jdbc:postgresql://db:5432/queryforge
       DB_USER: queryforge
-      DB_PASSWORD: ${QF_DB_PASSWORD}
+      DB_PASSWORD: ${QF_DB_PASSWORD:?Set QF_DB_PASSWORD}
       SERVER_ADDRESS: 0.0.0.0
       QF_WEB_PORT: ${QF_WEB_PORT:-8080}
+      QF_RUNNER_BASE_URL: ${QF_RUNNER_BASE_URL:-http://127.0.0.1:8080}
     ports:
       - "127.0.0.1:${QF_API_PORT:-8081}:8080"
     volumes:
@@ -83,10 +84,11 @@ services:
   keycloak:
     profiles: ["authenticated"]
     image: quay.io/keycloak/keycloak@sha256:32d2eb0f84aaf85b3e3afef544d5b25fcd40a791d62374f327a0cb5ca9aa1da5
+    entrypoint: ["/bin/sh", "/opt/keycloak/data/template/render-realm.sh"]
     command: start-dev --import-realm
     environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${QF_KEYCLOAK_ADMIN:-admin}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${QF_KEYCLOAK_ADMIN_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${QF_KEYCLOAK_ADMIN:?Set QF_KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${QF_KEYCLOAK_ADMIN_PASSWORD:?Set QF_KEYCLOAK_ADMIN_PASSWORD}
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_RELATIVE_PATH: /id/
       KC_HEALTH_ENABLED: "true"
@@ -98,11 +100,15 @@ services:
       KC_SMTP_AUTH: none
       KC_SMTP_STARTTLS: none
       KC_SMTP_SSL: "false"
+      QF_WEB_BASE_URL: ${QF_WEB_BASE_URL:-http://localhost:8080}
       # Custom branded theme.
       JAVA_OPTS_APPEND: "-Dkeycloak.theme=queryforge"
     volumes:
-      - ./docker/keycloak/queryforge-realm.json:/opt/keycloak/data/import/queryforge-realm.json:ro
+      - ./docker/keycloak/queryforge-realm.json.template:/opt/keycloak/data/template/queryforge-realm.json.template:ro
+      - ./docker/keycloak/render-realm.sh:/opt/keycloak/data/template/render-realm.sh:ro
       - ./docker/keycloak/themes:/opt/keycloak/theme:ro
+    secrets:
+      - qf_oidc_client_secret
       - keycloakdata:/opt/keycloak/data
     depends_on:
       mailpit:
@@ -188,4 +194,4 @@ volumes:
 
 secrets:
   qf_oidc_client_secret:
-    file: ./secrets/qf_oidc_client_secret.txt
+    file: ${QF_OIDC_CLIENT_SECRET_FILE:-./secrets/qf_oidc_client_secret.txt.example}

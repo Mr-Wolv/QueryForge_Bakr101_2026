@@ -50,6 +50,9 @@ desktop.ini
 .env
 .env.*
 !.env.example
+/cookies.txt
+/secrets/*
+!/secrets/*.example
 backups/
 /queryforge-backup.dump
 

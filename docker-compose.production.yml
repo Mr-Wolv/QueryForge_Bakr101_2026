@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
     environment:
       POSTGRES_DB: queryforge
       POSTGRES_USER: queryforge_admin
@@ -37,6 +37,8 @@ services:
       SPRING_PROFILES_ACTIVE: production
       DB_URL: jdbc:postgresql://db:5432/queryforge
       DB_USER: queryforge_app
+      SPRING_FLYWAY_LOCATIONS: filesystem:/app/db/flyway
+      QF_RUNNER_BASE_URL: ${QF_RUNNER_BASE_URL:-http://127.0.0.1:8080}
       QF_OIDC_CLIENT_ID: ${QF_OIDC_CLIENT_ID:?Set QF_OIDC_CLIENT_ID}
       QF_OIDC_ISSUER_URI: ${QF_OIDC_ISSUER_URI:?Set QF_OIDC_ISSUER_URI}
       QF_OIDC_GROUP_CLAIM: ${QF_OIDC_GROUP_CLAIM:-groups}
@@ -109,7 +111,7 @@ services:
       - web
 
   edge:
-    image: caddy:2.10-alpine
+    image: caddy:2.10-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
     environment:
       QF_DOMAIN: ${QF_DOMAIN:?Set QF_DOMAIN to a DNS name pointing at this host}
       QF_ACME_EMAIL: ${QF_ACME_EMAIL:?Set QF_ACME_EMAIL for certificate notices}
@@ -137,7 +139,7 @@ services:
       - web
 
   backup:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
     entrypoint: ["/bin/sh", "/workspace/scripts/backup-loop.sh"]
     environment:
       BACKUP_INTERVAL_SECONDS: ${QF_BACKUP_INTERVAL_SECONDS:-86400}
