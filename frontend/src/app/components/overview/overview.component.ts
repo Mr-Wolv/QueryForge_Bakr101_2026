@@ -118,20 +118,20 @@ import { StateCardComponent } from '../state-card/state-card.component';
           <p><strong>{{latestRun?.id}}</strong></p>
           <p>Template: {{latestRun?.templateId}}</p>
           <p>State: {{latestRun?.state}}</p>
-          <p>p95: {{latestRun?.metrics?.iterationPercentiles?.['p95'] | number:'1.0-0'}} ms</p>
-          <p>RPS: {{latestRun?.metrics?.rps | number:'1.2-2'}}</p>
+          <p>p95: {{metricText(latestRun?.metrics?.iterationPercentiles?.['p95'], 0, 'ms')}}</p>
+          <p>RPS: {{metricText(latestRun?.metrics?.rps, 2)}}</p>
           <a class="card-link" *ngIf="latestRun" [routerLink]="['/runs', latestRun.id]">Open latest run</a>
         </div>
 
         <div class="card">
-          <h2>Baseline · QF-001</h2>
+          <h2>QF-001 · latest</h2>
           <ng-container *ngIf="baselineRun as base; else noBaseline">
             <p><strong>{{base.id}}</strong></p>
-            <p>p95: {{base.metrics?.iterationPercentiles?.['p95'] | number:'1.0-0'}} ms</p>
-            <p>p50: {{base.metrics?.iterationPercentiles?.['p50'] | number:'1.0-0'}} ms</p>
-            <a class="card-link" [routerLink]="['/runs', base.id]">Inspect baseline</a>
+            <p>p95: {{metricText(base.metrics?.iterationPercentiles?.['p95'], 0, 'ms')}}</p>
+            <p>p50: {{metricText(base.metrics?.iterationPercentiles?.['p50'], 0, 'ms')}}</p>
+            <a class="card-link" [routerLink]="['/runs', base.id]">Inspect run</a>
           </ng-container>
-          <ng-template #noBaseline><p class="card-message">No QF-001 baseline is recorded yet.</p></ng-template>
+          <ng-template #noBaseline><p class="card-message">No QF-001 run is recorded yet.</p></ng-template>
         </div>
       </div>
       </ng-container>
@@ -158,11 +158,39 @@ export class OverviewComponent {
   }
 
   get latestRun(): ExperimentRun | null {
-    return this.runs.length > 0 ? this.runs[this.runs.length - 1] : null;
+    return this.mostRecent(this.runs);
   }
 
   get baselineRun(): ExperimentRun | null {
-    return this.runs.find(run => run.templateId === 'QF-001' && run.id.includes('baseline')) ?? null;
+    const qf001 = this.runs.filter(run => run.templateId === 'QF-001');
+    if (qf001.length === 0) return null;
+    // Legacy fixtures tag the baseline in the id; auto-generated runs are
+    // `qf-001-run-<hex>`, so fall back to the most recent QF-001 run.
+    return qf001.find(run => run.id.includes('baseline')) ?? this.mostRecent(qf001);
+  }
+
+  /**
+   * The API returns the newest run first, so "latest" must be derived from
+   * `startedAt` rather than assumed to be the last element of the page.
+   */
+  private mostRecent(runs: ExperimentRun[]): ExperimentRun | null {
+    if (runs.length === 0) return null;
+    return runs.reduce((newest, candidate) =>
+      new Date(candidate.startedAt).getTime() > new Date(newest.startedAt).getTime() ? candidate : newest
+    );
+  }
+
+  /**
+   * The `number` pipe renders nothing for a missing value, which left a bare
+   * unit behind ("p95: ms"). Show an em dash instead.
+   */
+  metricText(value: number | null | undefined, digits: number, unit: string = ''): string {
+    if (value === null || value === undefined || !Number.isFinite(value)) return '—';
+    const formatted = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(value);
+    return unit ? `${formatted} ${unit}` : formatted;
   }
 
   constructor() {
