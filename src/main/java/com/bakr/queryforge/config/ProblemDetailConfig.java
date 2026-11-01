@@ -18,16 +18,23 @@ public class ProblemDetailConfig {
             @Override
             public Map<String, Object> getErrorAttributes(org.springframework.web.context.request.WebRequest requestAttributes,
                                                           ErrorAttributeOptions options) {
-                var status = (Integer) requestAttributes.getAttribute("javax.servlet.error.status_code", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST);
+                var status = (Integer) requestAttributes.getAttribute("jakarta.servlet.error.status_code", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST);
+                if (status == null) {
+                    status = (Integer) requestAttributes.getAttribute("javax.servlet.error.status_code", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST);
+                }
                 var ex = getError(requestAttributes);
                 var message = (ex != null && ex.getMessage() != null) ? ex.getMessage() : "Unexpected error";
+                var instance = requestAttributes.getAttribute("jakarta.servlet.error.request_uri", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST);
+                if (instance == null) {
+                    instance = requestAttributes.getAttribute("javax.servlet.error.request_uri", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST);
+                }
 
                 return Map.of(
                         "type", "https://problem.org/internal",
                         "title", getTitleForStatus(status),
                         "status", status != null ? status : HttpStatus.INTERNAL_SERVER_ERROR.value(),
                         "detail", message,
-                        "instance", requestAttributes.getAttribute("javax.servlet.error.request_uri", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST),
+                        "instance", instance != null ? instance : "",
                         "errors", Map.of()
                 );
             }
