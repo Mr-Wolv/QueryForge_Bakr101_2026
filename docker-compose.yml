@@ -34,6 +34,12 @@ services:
       # Set QF_SPRING_PROFILE=local-auth for the authenticated local stack.
       # The default remains the explicit, visibly documented development bypass.
       SPRING_PROFILES_ACTIVE: ${QF_SPRING_PROFILE:-default}
+      # The image predates the configtree import added to
+      # application-local-auth.properties, so the container is given the equivalent
+      # environment: secrets become properties, and the client secret resolves to the
+      # file content instead of its path.
+      SPRING_CONFIG_IMPORT: optional:configtree:/run/secrets/
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_QUERYFORGE_CLIENT_SECRET: $${qf_oidc_client_secret}
       DB_URL: jdbc:postgresql://db:5432/queryforge
       DB_USER: queryforge
       DB_PASSWORD: ${QF_DB_PASSWORD:?Set QF_DB_PASSWORD}
