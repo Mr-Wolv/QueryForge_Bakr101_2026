@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { ApiClient } from './api-client.service';
+import { ApiClient, RunQuery } from './api-client.service';
 import { CacheService } from './cache.service';
 import { SseService } from './sse.service';
 
@@ -141,8 +141,8 @@ export class ApiService {
     return this.apiClient.logout<void>();
   }
 
-  getRuns(page: number = 0, size: number = 20): Observable<PageResponse<ExperimentRun>> {
-    return this.apiClient.getRuns<PageResponse<ExperimentRun>>(page, size);
+  getRuns(page: number = 0, size: number = 20, query: RunQuery = {}): Observable<PageResponse<ExperimentRun>> {
+    return this.apiClient.getRuns<PageResponse<ExperimentRun>>(page, size, query);
   }
 
   getRun(id: string): Observable<ExperimentRun> {

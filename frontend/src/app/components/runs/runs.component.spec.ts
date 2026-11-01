@@ -10,6 +10,7 @@ describe('RunsComponent', () => {
   it('shows a retryable error instead of an endless loading state', () => {
     const api = {
       getRuns: vi.fn(() => throwError(() => ({ status: 503 }))),
+      getExperiments: vi.fn(() => of([])),
     };
     TestBed.configureTestingModule({
       imports: [RunsComponent],
@@ -32,7 +33,10 @@ describe('RunsComponent', () => {
   });
 
   it('renders an empty state when the history is genuinely empty', () => {
-    const api = { getRuns: vi.fn(() => of({ content: [], page: 0, size: 20, totalElements: 0, totalPages: 0, hasNext: false })) };
+    const api = {
+      getRuns: vi.fn(() => of({ content: [], page: 0, size: 20, totalElements: 0, totalPages: 0, hasNext: false })),
+      getExperiments: vi.fn(() => of([])),
+    };
     TestBed.configureTestingModule({
       imports: [RunsComponent],
       providers: [

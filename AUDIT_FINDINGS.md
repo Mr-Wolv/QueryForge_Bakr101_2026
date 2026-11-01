@@ -539,3 +539,4 @@ After the accessibility, ADR, and credential-hygiene commits, the full backend s
 | `npm audit --audit-level=high` (from `frontend`) | **Passed:** 0 vulnerabilities. |
 | `npm run build:analyze` (from `frontend`) | **Passed:** Angular production build and analysis stats emitted; existing compiler/CSS-budget warnings remain. |
 | `$env:PLAYWRIGHT_PORT='43141'; npm run e2e -- e2e/a11y.spec.ts` (from `frontend`) | **Passed:** 6/6 tests; six routes scanned in light and dark themes with no tagged axe violations, plus label, keyboard, toast, and image checks. |
+| `Set-Location frontend; npm test` and `Set-Location frontend; npm run build:analyze` | **Re-run after backend commits with pending frontend UX/service changes:** 41/41 unit tests passed; production build succeeded with pre-existing optional-chain and CSS-budget warnings. |

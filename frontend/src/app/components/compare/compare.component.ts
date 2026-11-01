@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService, ExperimentRun, ComparisonResult, MetricDeltaValue } from '../../services/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { StateCardComponent } from '../state-card/state-card.component';
+import { catchError, forkJoin, map, of, Observable } from 'rxjs';
 
 interface DeltaRow {
   key: string;
@@ -14,6 +15,13 @@ interface DeltaRow {
   delta: string;
   percent: string;
   direction: 'better' | 'worse' | 'neutral';
+}
+
+interface CandidateComparison {
+  candidateId: string;
+  result?: ComparisonResult;
+  rows: DeltaRow[];
+  error?: string;
 }
 
 const LABELS: Record<string, { label: string; group: string; higherIsBetter: boolean }> = {
@@ -46,17 +54,39 @@ const LABELS: Record<string, { label: string; group: string; higherIsBetter: boo
           </select>
         </label>
         <label>
-          Candidate run
-          <select [(ngModel)]="b" name="b" required>
-            <option value="">Select run</option>
-            <option *ngFor="let r of runs" [value]="r.id">{{r.id}}</option>
+          Candidate runs
+          <select [(ngModel)]="candidates" name="candidates" multiple required size="5">
+            <option *ngFor="let r of runs" [value]="r.id" [disabled]="r.id === a">{{r.id}}</option>
           </select>
         </label>
-        <button *ngIf="auth.canOperate()" type="submit" [disabled]="loading">{{loading ? 'Comparing…' : 'Compare'}}</button>
+        <button *ngIf="auth.canOperate()" type="submit" [disabled]="loading || candidates.length === 0">
+          {{loading ? 'Comparing…' : 'Compare with candidates'}}
+        </button>
         <p *ngIf="!auth.canOperate()" class="read-only-note">An experiment operator must create comparisons.</p>
       </form>
 
       <app-state-card *ngIf="error" mode="unavailable" [message]="error" />
+
+      <section class="batch-summary" *ngIf="batchResults.length > 0">
+        <h2>Baseline against candidates</h2>
+        <table>
+          <thead>
+            <tr><th scope="col">Candidate</th><th scope="col">Compatible</th><th scope="col">p95 change</th><th scope="col">Details</th></tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of batchResults">
+              <th scope="row" class="mono">{{item.candidateId}}</th>
+              <td *ngIf="item.result">{{item.result.verdict.compatible ? 'Yes' : 'No'}}</td>
+              <td *ngIf="!item.result" colspan="2" role="alert">{{item.error}}</td>
+              <td *ngIf="item.result">
+                {{item.result.metricsDelta?.['iteration.p95']?.delta ?? 'n/a'}}
+                {{item.result.metricsDelta?.['iteration.p95']?.unit ?? ''}}
+              </td>
+              <td><button class="small" type="button" (click)="selectBatchResult(item)" [disabled]="!item.result">View</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
 
       <div class="result" *ngIf="result">
         <h2 class="title">
@@ -173,12 +203,13 @@ export class CompareComponent {
   runs: ExperimentRun[] = [];
   result?: ComparisonResult;
   history: ComparisonResult[] = [];
+  batchResults: CandidateComparison[] = [];
   rows: DeltaRow[] = [];
   loading = false;
   loadingHistory = false;
   error?: string;
   a = '';
-  b = '';
+  candidates: string[] = [];
 
   constructor() {
     this.api.getRuns().subscribe({
@@ -251,29 +282,58 @@ export class CompareComponent {
 
   compare() {
     const leftRunId = this.a;
-    const rightRunId = this.b;
-    if (!leftRunId || !rightRunId) return;
+    const candidateIds = [...new Set(this.candidates.filter(id => id && id !== leftRunId))];
+    if (!leftRunId || candidateIds.length === 0) return;
     this.loading = true;
     this.error = undefined;
     this.result = undefined;
     this.rows = [];
-    this.api.compare(leftRunId, rightRunId).subscribe({
-      next: (res) => {
-        this.result = {
-          ...res,
-          baseline: res.leftRunId,
-          candidate: res.rightRunId,
-        };
-        this.rows = this.buildRows(res.metricsDelta ?? {});
+    this.batchResults = [];
+    const requests: Observable<CandidateComparison>[] = candidateIds.map(candidateId =>
+      this.api.compare(leftRunId, candidateId).pipe(
+        map(res => ({
+          candidateId,
+          result: { ...res, baseline: res.leftRunId, candidate: res.rightRunId },
+          rows: this.buildRows(res.metricsDelta ?? {}),
+        })),
+        catchError(err => of({
+          candidateId,
+          rows: [],
+          error: this.describe(err),
+        }))
+      )
+    );
+    forkJoin(requests).subscribe({
+      next: results => {
+        this.batchResults = results;
+        const firstSuccess = results.find(item => item.result);
+        if (firstSuccess?.result) {
+          this.result = firstSuccess.result;
+          this.rows = firstSuccess.rows;
+        }
         this.loading = false;
         this.cdr.markForCheck();
       },
-      error: (err: any) => {
-        this.error = err?.error?.detail || err?.error?.title || 'Comparison failed.';
+      error: () => {
+        this.error = 'The comparison requests could not be completed.';
         this.loading = false;
         this.cdr.markForCheck();
       }
     });
+  }
+
+  selectBatchResult(item: CandidateComparison) {
+    if (!item.result) return;
+    this.result = item.result;
+    this.rows = item.rows;
+    this.cdr.markForCheck();
+  }
+
+  private describe(err: any): string {
+    const detail = err?.error?.detail ?? err?.error?.title;
+    return typeof detail === 'string' && detail.length > 0
+      ? detail
+      : 'This candidate could not be compared.';
   }
 
   private buildRows(deltas: Record<string, MetricDeltaValue>): DeltaRow[] {

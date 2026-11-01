@@ -1,8 +1,17 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { CacheService } from './cache.service';
+
+export interface RunQuery {
+  state?: string;
+  templateId?: string;
+  from?: string;
+  to?: string;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+}
 
 @Injectable({ providedIn: 'root' })
 export class ApiClient {
@@ -30,9 +39,13 @@ export class ApiClient {
     return this.http.post<T>(`${this.base}/auth/logout`, {});
   }
 
-  getRuns<T = any>(page: number = 0, size: number = 20): Observable<T> {
-    return this.cache.cached(`runs:${page}:${size}`, () =>
-      this.http.get<T>(`${this.base}/runs?page=${page}&size=${size}`)
+  getRuns<T = any>(page: number = 0, size: number = 20, query: RunQuery = {}): Observable<T> {
+    let params = new HttpParams().set('page', page).set('size', size);
+    for (const [key, value] of Object.entries(query)) {
+      if (value) params = params.set(key, value);
+    }
+    return this.cache.cached(`runs:${params.toString()}`, () =>
+      this.http.get<T>(`${this.base}/runs`, { params })
     );
   }
 
