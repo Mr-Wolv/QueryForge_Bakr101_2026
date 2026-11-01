@@ -6,7 +6,7 @@ export const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 // Deterministic RNG support: use __ENV.SEED (default 42) for reproducible runs
 // Implements a simple xorshift32 PRNG for consistent results across runs.
 let rngState = parseInt(__ENV.SEED || '42', 10) || 42;
-function seededRandom() {
+export function seededRandom() {
   rngState ^= rngState << 13;
   rngState ^= rngState >>> 17;
   rngState ^= rngState << 5;
