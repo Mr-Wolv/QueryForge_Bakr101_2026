@@ -175,7 +175,7 @@ is empty" and "allows launching once the dataset is populated".
 | `frontend` Overview spec | 3/3 pass (isolated run) |
 | `frontend` Compare spec | 2/2 pass (isolated run) |
 | `frontend` full suite | **Fixed.** The abort was a native OOM (`FATAL ERROR: Zone Allocation failed`). With a bounded Vitest fork pool (`frontend/vitest.config.ts`, 2 forks, 4 GB heap) `npm test` reports **49 tests across 9 files, exit 0**, with no environment variables. |
-| Backend test suite | Not run this session |
+| Backend test suite | **197 tests, 0 failures, 0 errors, 0 skipped** — `sh ./mvnw -B -ntp verify` → BUILD SUCCESS, 2026-11-01 (`logs/qa-mvn-verify.log`) |
 | Live UI | Exercised at `/`, `/experiments`, `/runs`, `/runs/:id` (succeeded + failed), `/compare` |
 | Logged out / authenticated flows | **Not exercised** — the running profile disables authentication |
 
@@ -187,3 +187,6 @@ is empty" and "allows launching once the dataset is populated".
   with `PORT=4200 npm start -- --host 127.0.0.1 --port 4200` pins it deterministically.
 - No database, volume, benchmark artifact or user data was modified, reset or deleted during the session.
   Benchmark history and the `benchmark/results` directory were left intact.
+- The development bypass profile (`@Profile("!production & !local-auth")`) now disables CSRF. That profile
+  authenticates nobody and issues no session cookie, so CSRF tokens protect nothing there; CSRF stays
+  enforced by `ProductionSecurityConfig` for the `production` and `local-auth` profiles.

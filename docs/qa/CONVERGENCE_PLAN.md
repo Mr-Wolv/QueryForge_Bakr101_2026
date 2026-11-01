@@ -56,7 +56,7 @@ Weighted total: **≈ 83%**.
 | Database | `rowCount: 0` |
 | k6 | UP (`tools\k6\k6.exe`) |
 | Frontend build | Green — 358.30 kB initial / 97.81 kB transfer (budget warns at 400 kB) |
-| Frontend specs | 8 files; last full run passed 44 tests across 7 files; the new Compare spec (2 tests) passes in isolation |
+| Frontend specs | 9 files, **49 tests passing** (`npm test`, exit 0, no env vars) |
 
 ---
 
@@ -156,10 +156,13 @@ Not exercised in the 2026-11-01 session, though partly covered by prior automate
 
 **Acceptance:** each item exercised live and either passing or logged in `BUG_HUNT.md` with an ID.
 
-### C7 — Re-run the backend suite (10 min, after C1)
+### C7 — Re-run the backend suite (10 min, after C1) — **DONE 2026-11-01**
 
 **Acceptance:** `runmvn.bat -B -ntp clean verify` (or `./mvnw -B -ntp clean verify`) reports 143+ tests,
 0 failures, 0 skipped, with the `postgres:17` Testcontainers test actually running.
+
+**Outcome:** `sh ./mvnw -B -ntp verify` → BUILD SUCCESS, **197 tests, 0 failures, 0 errors, 0 skipped**
+(`logs/qa-mvn-verify.log`), including the real `postgres:17` Testcontainers coverage.
 
 ### C8 — Decide the production-shaped deployment (1–2 d, or scope it out)
 
@@ -229,3 +232,4 @@ curl -s -o /dev/null -w '%{http_code}\n' localhost:8081/api/runs   # expect 401 
 | --- | --- |
 | 2026-11-01 | Initial plan. 7 findings from the live session, 4 fixed and verified, 3 open. Overall ≈ 80%. |
 | 2026-11-01 | C1, C2 and most of C3 landed: 9 commits, 6 of 7 findings fixed and verified, frontend suite reproducible at 49/49. Overall ≈ 83%. |
+| 2026-11-01 | C7 closed: backend suite green at 197 tests. Working tree clean; remaining work is C4 (authenticated stack), C5 (data), C6 (UI sweep) and the deferred QF-005. |
