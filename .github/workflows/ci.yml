@@ -55,9 +55,8 @@ jobs:
       - run: npm audit --audit-level=high
         working-directory: frontend
         continue-on-error: true
-      - run: npx ng test --watch=false --coverage
+      - run: npm test
         working-directory: frontend
-        run: npm test
 
       - name: Build production frontend
         working-directory: frontend
