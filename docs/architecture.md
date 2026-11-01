@@ -2,9 +2,10 @@
 
 ## What this is
 
-A deliberately small Spring Boot 3.5.5 / Java 25 REST service over PostgreSQL 17 whose purpose is to
-**measure** database behavior: filtered search, sorted pagination, and concurrency — then to
-optimize it via controlled, reproducible experiments.
+A Spring Boot 3.5.5 / Java 25 service over PostgreSQL 17 whose purpose is to **measure** database
+behavior: filtered search, sorted pagination, and concurrency — then to optimize it via controlled,
+reproducible experiments. The service also orchestrates benchmark runs and preserves their results
+for comparison and review.
 
 ## Stack
 
@@ -12,11 +13,23 @@ optimize it via controlled, reproducible experiments.
 | --- | --- |
 | Runtime | Java 25, Spring Boot 3.5.5 |
 | Web | Spring Web (MVC, Tomcat) |
-| Data | Spring Data JPA / Hibernate 6.6 + `JpaSpecificationExecutor`; `NamedParameterJdbcTemplate` for keyset |
-| DB | PostgreSQL 17 (`pg_stat_statements` preloaded), Docker Compose |
-| Load | k6 (constant-arrival and constant-VU scenarios) |
+| Browser UI | Angular 22 SPA, deployed separately from the API |
+| Identity | Keycloak OIDC in production; an explicit local development security profile |
+| Data | Spring Data JPA / Hibernate 6.6 + `JpaSpecificationExecutor`; parameterized JDBC for keyset |
+| DB | PostgreSQL 17 (`pg_stat_statements` preloaded); Docker Compose |
+| Run events | Server-Sent Events (SSE) |
+| Load | k6 (constant-arrival and constant-VU scenarios), invoked as a separate process |
 | Tests | JUnit 5, Testcontainers (PostgreSQL) |
 | CI | GitHub Actions (build + functional tests) |
+
+## Service boundaries
+
+The backend is a modular monolith: product search, experiment orchestration, run persistence,
+artifact handling, and security are deployed in one Spring Boot service and use the same PostgreSQL
+instance. The Angular evidence browser is a separate static frontend that calls the API. Benchmark
+workloads run through the k6 process adapter rather than sharing the API process. This keeps the
+measured database workload and its orchestration explicit without introducing distributed service
+coordination.
 
 ## Components
 
@@ -62,6 +75,11 @@ src/main/java/com/bakr/queryforge/
 
 ## Deliberate omissions
 
-No auth, no caching layer, no search engine, no message broker, no Kubernetes. Every optimization
-in this repo must be attributable to a measured bottleneck — infrastructure would confound the
+No search engine, message broker, or Kubernetes layer is introduced. Every optimization in this
+repo must be attributable to a measured bottleneck — extra infrastructure would confound the
 experiments. (See [conclusions.md](conclusions.md) for what *would* be justified next.)
+
+## Architecture decisions
+
+The bounded inventory of the project's key architectural decisions is maintained in
+[docs/adr/README.md](adr/README.md).
