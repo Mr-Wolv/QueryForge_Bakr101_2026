@@ -1,7 +1,5 @@
 # QueryForge
 
-[![CI](https://github.com/Mr-Wolv/QueryForge_Bakr101_2026/actions/workflows/ci.yml/badge.svg)](https://github.com/Mr-Wolv/QueryForge_Bakr101_2026/actions/workflows/ci.yml)
-
 **PostgreSQL Performance Engineering Service** — build it, measure it, find the bottleneck, fix it, prove it.
 
 A small Spring Boot 3.5.5 / Java 25 REST service over a 1,000,000-row PostgreSQL product catalog,
