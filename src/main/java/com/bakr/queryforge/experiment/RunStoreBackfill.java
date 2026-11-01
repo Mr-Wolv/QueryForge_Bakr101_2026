@@ -25,9 +25,13 @@ public class RunStoreBackfill implements ApplicationRunner {
         var records = manifests.readAllStrict().stream()
                 .map(ExperimentRunMapper::fromManifest)
                 .toList();
-        long imported = persistence.importLegacyRuns(records);
-        if (imported > 0) {
-            log.info("Imported {} legacy run manifests into PostgreSQL", imported);
+        try {
+            long imported = persistence.importLegacyRuns(records);
+            if (imported > 0) {
+                log.info("Imported {} legacy run manifests into PostgreSQL", imported);
+            }
+        } catch (Exception e) {
+            log.warn("Legacy run backfill skipped: {}", e.getMessage());
         }
     }
 }

@@ -56,9 +56,13 @@ public class RunHistoryController {
 
     @GetMapping("/{id}")
     public ResponseEntity<ExperimentRun> get(@PathVariable String id) {
-        return runs.findById(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        ExperimentRun run = runs.findById(id).orElse(null);
+        if (run == null) return ResponseEntity.notFound().build();
+        List<RunArtifact> catalog = artifactService.catalogForRun(id, run.artifacts());
+        ExperimentRun enriched = new ExperimentRun(
+                run.id(), run.templateId(), run.state(), run.startedAt(), run.durationMs(),
+                run.labels(), run.parameters(), run.metrics(), catalog, run.appCommit());
+        return ResponseEntity.ok(enriched);
     }
 
     @GetMapping("/template/{templateId}")

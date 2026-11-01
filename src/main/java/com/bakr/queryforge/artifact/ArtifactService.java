@@ -57,6 +57,10 @@ public class ArtifactService {
      * crafted artifact ID from reading arbitrary files.
      */
     public Optional<Path> resolveForRun(String runId, String artifactId) {
+        return resolveForRun(runId, artifactId, List.of());
+    }
+
+    public Optional<Path> resolveForRun(String runId, String artifactId, List<RunArtifact> dbArtifacts) {
         if (artifactId == null || artifactId.isBlank()) return Optional.empty();
         if (artifactId.contains("..") || artifactId.contains("/") || artifactId.contains("\\")) {
             return Optional.empty();
@@ -69,6 +73,14 @@ public class ArtifactService {
             if (Files.isRegularFile(legacy)) return Optional.of(normalize(legacy));
         }
 
+        // Prefer an explicit location from the run's persisted artifact list
+        // (covers synthesized legacy artifacts and real manifest entries).
+        for (RunArtifact a : dbArtifacts) {
+            if (artifactId.equals(a.artifactId())) {
+                return safeResolve(a.location(), runId);
+            }
+        }
+
         Optional<RunManifest> manifest = manifests.read(runId);
         if (manifest.isPresent()) {
             for (RunManifest.ArtifactEntry entry : manifest.get().artifacts()) {
@@ -79,7 +91,23 @@ public class ArtifactService {
                 }
             }
         }
+
         // Historical runs have no manifest; fall back to the legacy catalog.
+        if ("k6-summary".equals(artifactId)) {
+            Path p = ROOT.resolve("benchmark").resolve("results").resolve(runId + ".json");
+            if (Files.isRegularFile(p)) return Optional.of(normalize(p));
+        }
+        if ("explain-plan".equals(artifactId)) {
+            Path plans = ROOT.resolve("docs").resolve("experiments").resolve("plans");
+            String planKey = planKeyForRun(runId);
+            Path planFile = plans.resolve(planKey + "-explain.txt");
+            if (!Files.isRegularFile(planFile)) {
+                planFile = plans.resolve(planKey + ".txt");
+            }
+            if (Files.isRegularFile(planFile)) {
+                return Optional.of(normalize(planFile));
+            }
+        }
         return resolve(artifactId);
     }
 
@@ -117,6 +145,20 @@ public class ArtifactService {
     }
 
     /** Artifact catalog for a run, including the manifest itself. */
+    private static String planKeyForRun(String runId) {
+        return switch (runId) {
+            case "qf001-baseline-search-1M-r10" -> "qf001-baseline";
+            case "qf001-indexed-search-1M-r10", "qf001-indexed-search-1M-r30" -> "qf001-indexed";
+            case "qf002-offset-1M" -> "qf002-offset-deep";
+            case "qf002-keyset-1M" -> "qf002-keyset-baseline";
+            case "qf004-keyset-both-indexes" -> "qf004-keyset-both-indexes";
+            case "qf004-keyset-filter-first-only" -> "qf004-keyset-filter-first";
+            case "qf004-search-both-indexes-r10" -> "qf004-search-both-indexes";
+            case "qf004-search-filter-first-only-r10" -> "qf004-search-filter-first-only";
+            default -> runId;
+        };
+    }
+
     public List<RunArtifact> catalogForRun(String runId, List<RunArtifact> artifacts) {
         List<RunArtifact> catalog = new ArrayList<>();
         Path manifestPath = manifests.manifestPath(runId);
@@ -130,6 +172,28 @@ public class ArtifactService {
                     .anyMatch(a -> a.artifactId().equals(artifact.artifactId()));
             if (!duplicate) catalog.add(artifact);
         }
+
+        // Legacy runs imported without artifacts synthesize what is available on disk.
+        if (catalog.isEmpty()) {
+            Path resultsDir = ROOT.resolve("benchmark").resolve("results");
+            Path resultsFile = resultsDir.resolve(runId + ".json");
+            if (Files.isRegularFile(resultsFile)) {
+                catalog.add(new RunArtifact("k6-summary", "k6-summary", "application/json",
+                        resultsFile.toString(), "k6 summary JSON"));
+            }
+
+            Path plansDir = ROOT.resolve("docs").resolve("experiments").resolve("plans");
+            String planKey = planKeyForRun(runId);
+            Path planFile = plansDir.resolve(planKey + "-explain.txt");
+            if (!Files.isRegularFile(planFile)) {
+                planFile = plansDir.resolve(planKey + ".txt");
+            }
+            if (Files.isRegularFile(planFile)) {
+                catalog.add(new RunArtifact("explain-plan", "explain-plan", "text/plain",
+                        planFile.toString(), "EXPLAIN (ANALYZE, BUFFERS)"));
+            }
+        }
+
         return catalog;
     }
 

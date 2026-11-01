@@ -125,12 +125,11 @@ class ExperimentRunControllerUnitTest {
     void artifactsZipReturnsArchive(@TempDir java.nio.file.Path temp) throws IOException {
         java.nio.file.Path artifact = temp.resolve("metrics.json");
         java.nio.file.Files.writeString(artifact, "{\"p50\": 12}");
-        RunArtifact entry = new RunArtifact("metrics", "application/json",
+        RunArtifact entry = new RunArtifact("metrics", "metrics", "application/json",
                 artifact.toString(), "Iteration metrics");
 
-        Mockito.when(runs.findById("run-1")).thenReturn(Optional.of(run("run-1", "SUCCEEDED")));
-        Mockito.when(runs.artifacts("run-1")).thenReturn(List.of(entry));
-        Mockito.when(artifactService.resolveForRun("run-1", "metrics"))
+        Mockito.when(runs.findById("run-1")).thenReturn(Optional.of(run("run-1", "SUCCEEDED", entry)));
+        Mockito.when(artifactService.resolveForRun(Mockito.eq("run-1"), Mockito.eq("metrics"), Mockito.any()))
                 .thenReturn(Optional.of(artifact));
 
         ResponseEntity<byte[]> resp = controller.artifactsZip("run-1");
@@ -163,8 +162,10 @@ class ExperimentRunControllerUnitTest {
                 Nested Loop  (cost=0.00..1.00 rows=1 width=8)
                   ->  Seq Scan on products  (cost=0.00..0.50 rows=1 width=8)
                 """);
-        Mockito.when(runs.findById("run-1")).thenReturn(Optional.of(run("run-1", "SUCCEEDED")));
-        Mockito.when(artifactService.resolveForRun("run-1", "explain-plan"))
+        RunArtifact artifactEntry = new RunArtifact("explain-plan", "explain-plan", "text/plain",
+                plan.toString(), "EXPLAIN plan");
+        Mockito.when(runs.findById("run-1")).thenReturn(Optional.of(run("run-1", "SUCCEEDED", artifactEntry)));
+        Mockito.when(artifactService.resolveForRun(Mockito.eq("run-1"), Mockito.eq("explain-plan"), Mockito.any()))
                 .thenReturn(Optional.of(plan));
         Mockito.when(artifactService.readText(plan))
                 .thenAnswer(inv -> Optional.of(java.nio.file.Files.readString(plan)));
@@ -185,10 +186,10 @@ class ExperimentRunControllerUnitTest {
                 .isInstanceOf(com.bakr.queryforge.service.NotFoundException.class);
     }
 
-    private static ExperimentRun run(String id, String state) {
+    private static ExperimentRun run(String id, String state, RunArtifact... artifacts) {
         return new ExperimentRun(id, "QF-001", state, Instant.now(), 0,
                 Map.of(), Map.of(), com.bakr.queryforge.measurement.Metrics.empty(),
-                List.of(), "unknown");
+                List.of(artifacts), "unknown");
     }
 
     @Test
@@ -205,7 +206,7 @@ class ExperimentRunControllerUnitTest {
 
         Mockito.when(runs.findById("run-1")).thenReturn(Optional.of(run("run-1", "FAILED")));
         Mockito.when(runs.manifest("run-1")).thenReturn(Optional.of(manifest));
-        Mockito.when(artifactService.resolveForRun("run-1", "runner-stderr"))
+        Mockito.when(artifactService.resolveForRun(Mockito.eq("run-1"), Mockito.eq("runner-stderr"), Mockito.any()))
                 .thenReturn(Optional.of(stderr));
         Mockito.when(artifactService.readText(stderr))
                 .thenAnswer(inv -> Optional.of(java.nio.file.Files.readString(stderr)));
@@ -222,7 +223,7 @@ class ExperimentRunControllerUnitTest {
     void diagnosticsDegradeWhenNothingWasCaptured() {
         Mockito.when(runs.findById("run-1")).thenReturn(Optional.of(run("run-1", "FAILED")));
         Mockito.when(runs.manifest("run-1")).thenReturn(Optional.empty());
-        Mockito.when(artifactService.resolveForRun("run-1", "runner-stderr"))
+        Mockito.when(artifactService.resolveForRun(Mockito.eq("run-1"), Mockito.eq("runner-stderr"), Mockito.any()))
                 .thenReturn(Optional.empty());
 
         ResponseEntity<RunDiagnostics> resp = controller.diagnostics("run-1");

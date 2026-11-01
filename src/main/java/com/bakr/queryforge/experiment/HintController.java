@@ -37,7 +37,7 @@ public class HintController {
     private String planText(String runId, List<RunArtifact> artifacts) {
         for (RunArtifact artifact : artifacts) {
             if ("explain-plan".equals(artifact.kind())) {
-                Optional<Path> path = artifactService.resolveForRun(runId, artifact.artifactId());
+                Optional<Path> path = artifactService.resolveForRun(runId, artifact.artifactId(), artifacts);
                 if (path.isPresent()) {
                     return artifactService.readText(path.get()).orElse("");
                 }

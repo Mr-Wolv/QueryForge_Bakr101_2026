@@ -128,9 +128,9 @@ public class ExperimentRunController {
     @GetMapping("/{id}/artifacts/{artifactId}/plan")
     public ResponseEntity<PlanParser.PlanNode> parsedPlan(
             @PathVariable String id, @PathVariable String artifactId) {
-        runs.findById(id).orElseThrow(
+        ExperimentRun run = runs.findById(id).orElseThrow(
                 () -> new com.bakr.queryforge.service.NotFoundException("run not found: " + id));
-        Path path = artifactService.resolveForRun(id, artifactId)
+        Path path = artifactService.resolveForRun(id, artifactId, run.artifacts())
                 .orElseThrow(() -> new com.bakr.queryforge.service.NotFoundException(
                         "artifact not found: " + artifactId));
         String text = artifactService.readText(path)
@@ -141,8 +141,8 @@ public class ExperimentRunController {
 
     @GetMapping("/{id}/artifacts/{artifactId}")
     public ResponseEntity<Resource> artifact(@PathVariable String id, @PathVariable String artifactId) {
-        runs.findById(id).orElseThrow(() -> new com.bakr.queryforge.service.NotFoundException("run not found: " + id));
-        Path path = artifactService.resolveForRun(id, artifactId)
+        ExperimentRun run = runs.findById(id).orElseThrow(() -> new com.bakr.queryforge.service.NotFoundException("run not found: " + id));
+        Path path = artifactService.resolveForRun(id, artifactId, run.artifacts())
                 .orElseThrow(() -> new com.bakr.queryforge.service.NotFoundException("artifact not found: " + artifactId));
         Resource resource = new org.springframework.core.io.FileSystemResource(path);
         String contentType = artifactService.guessContentType(path);
@@ -154,12 +154,13 @@ public class ExperimentRunController {
 
     @GetMapping(value = "/{id}/artifacts", params = "format=zip")
     public ResponseEntity<byte[]> artifactsZip(@PathVariable String id) {
-        runs.findById(id).orElseThrow(() -> new com.bakr.queryforge.service.NotFoundException("run not found: " + id));
-        List<RunArtifact> artifacts = runs.artifacts(id);
+        ExperimentRun run = runs.findById(id)
+                .orElseThrow(() -> new com.bakr.queryforge.service.NotFoundException("run not found: " + id));
+        List<RunArtifact> artifacts = run.artifacts();
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
              ZipOutputStream zos = new ZipOutputStream(bos)) {
             for (RunArtifact a : artifacts) {
-                Optional<Path> resolved = artifactService.resolveForRun(id, a.artifactId());
+                Optional<Path> resolved = artifactService.resolveForRun(id, a.artifactId(), artifacts);
                 if (resolved.isEmpty()) continue;
                 Path path = resolved.get();
                 String entryName = path.getFileName().toString();
@@ -197,7 +198,7 @@ public class ExperimentRunController {
         // Manifests name this artifact "stderr" (kind runner-stderr); older runs and
         // fixtures may use the kind as the id, so accept both spellings.
         for (String artifactId : List.of("runner-stderr", "stderr")) {
-            Optional<String> text = artifactService.resolveForRun(id, artifactId)
+            Optional<String> text = artifactService.resolveForRun(id, artifactId, run.artifacts())
                     .flatMap(artifactService::readText);
             if (text.isPresent() && !text.get().isBlank()) {
                 stderr = tail(text.get(), 4000);
