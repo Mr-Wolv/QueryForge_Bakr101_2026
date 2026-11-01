@@ -37,6 +37,7 @@ jobs:
           distribution: temurin
           java-version: 25
           cache: maven
+      - run: mvn dependency:go-offline
       - run: mvn -o test
 
   frontend:
@@ -44,10 +45,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up Node.js 24
+      - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
@@ -97,6 +98,21 @@ jobs:
           CI: true
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:4200
         run: npx playwright test e2e/a11y.spec.ts
+
+      - name: Stop production frontend test server
+        if: always()
+        run: docker stop queryforge-frontend-ci || true
+
+      - name: Upload Playwright artifacts on failure
+        if: always()
+        working-directory: frontend
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 7
 
 
   production-config:
@@ -156,5 +172,4 @@ jobs:
         run: |
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
-            --load \
             --tag queryforge-backend:ci .
