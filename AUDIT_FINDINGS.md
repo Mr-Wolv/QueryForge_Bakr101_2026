@@ -534,6 +534,7 @@ After the accessibility, ADR, and credential-hygiene commits, the full backend s
 |---|---|
 | `mvn -B -ntp test` | **Passed:** 202 tests, 0 failures/errors/skips; `PostgresIntegrationSmokeTest` ran 5/5 using its isolated Testcontainers PostgreSQL. |
 | `mvn -B -ntp -Dtest=PostgresIntegrationSmokeTest test` | **Re-run after the run-store documentation correction:** 5/5 passed; disposable PostgreSQL 17 applied Flyway baseline v2 plus migrations v3/v4, and exercised filtering/pagination, idempotent backfill, and optimistic locking. |
+| `mvn -B -ntp '-Dtest=PlanParserTest,ComparisonServiceTest,ComparisonControllerTest,EnvironmentFingerprintServiceTest,K6RunnerAdapterTest' test` | **Passed:** 58 tests, 0 failures/errors/skips; includes a new assertion that runner metadata is persisted and configuration hashes are stable regardless of map iteration order. |
 | `npm test` (from `frontend`) | **Passed:** 41/41 tests. |
 | `npm audit --audit-level=high` (from `frontend`) | **Passed:** 0 vulnerabilities. |
 | `npm run build:analyze` (from `frontend`) | **Passed:** Angular production build and analysis stats emitted; existing compiler/CSS-budget warnings remain. |

@@ -4,12 +4,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.sql.Connection;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Captures the environment facts that make a measurement reproducible.
@@ -41,6 +44,11 @@ public class EnvironmentFingerprintService {
     }
 
     public Snapshot capture() {
+        return capture(null, Map.of(), null);
+    }
+
+    public Snapshot capture(String templateId, Map<String, String> parameters,
+                           com.bakr.queryforge.experiment.runner.RunnerAdapter runner) {
         String postgresVersion = "unknown";
         int postgresMajorVersion = -1;
         String databaseProduct = "unknown";
@@ -91,7 +99,11 @@ public class EnvironmentFingerprintService {
                 indexState,
                 Runtime.getRuntime().availableProcessors(),
                 Runtime.getRuntime().maxMemory() / 1024 / 1024,
-                Instant.now().toString()
+                Instant.now().toString(),
+                runner == null ? "unknown" : runner.name(),
+                runner == null ? "unavailable" : runner.version(),
+                runner == null || templateId == null ? "unavailable" : runner.sourceFingerprint(templateId),
+                configurationFingerprint(templateId, parameters)
         );
     }
 
@@ -112,7 +124,25 @@ public class EnvironmentFingerprintService {
         map.put("cpuCores", snapshot.cpuCores());
         map.put("memoryMb", snapshot.memoryMb());
         map.put("checkedAt", snapshot.checkedAt());
+        map.put("runnerName", snapshot.runnerName());
+        map.put("runnerVersion", snapshot.runnerVersion());
+        map.put("runnerSourceSha256", snapshot.runnerSourceSha256());
+        map.put("configurationSha256", snapshot.configurationSha256());
         return map;
+    }
+
+    private static String configurationFingerprint(String templateId, Map<String, String> parameters) {
+        if (templateId == null) return "unavailable";
+        try {
+            StringBuilder canonical = new StringBuilder(templateId).append('\n');
+            new TreeMap<>(parameters).forEach((key, value) ->
+                    canonical.append(key).append('=').append(value).append('\n'));
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.toString().getBytes(StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(digest);
+        } catch (Exception e) {
+            return "unavailable";
+        }
     }
 
     public static String indexState(List<String> indexes) {
@@ -144,6 +174,10 @@ public class EnvironmentFingerprintService {
             String indexState,
             int cpuCores,
             long memoryMb,
-            String checkedAt
+            String checkedAt,
+            String runnerName,
+            String runnerVersion,
+            String runnerSourceSha256,
+            String configurationSha256
     ) {}
 }
