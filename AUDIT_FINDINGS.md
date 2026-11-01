@@ -540,3 +540,42 @@ After the accessibility, ADR, and credential-hygiene commits, the full backend s
 | `npm run build:analyze` (from `frontend`) | **Passed:** Angular production build and analysis stats emitted; existing compiler/CSS-budget warnings remain. |
 | `$env:PLAYWRIGHT_PORT='43141'; npm run e2e -- e2e/a11y.spec.ts` (from `frontend`) | **Passed:** 6/6 tests; six routes scanned in light and dark themes with no tagged axe violations, plus label, keyboard, toast, and image checks. |
 | `Set-Location frontend; npm test` and `Set-Location frontend; npm run build:analyze` | **Re-run after backend commits with pending frontend UX/service changes:** 41/41 unit tests passed; production build succeeded with pre-existing optional-chain and CSS-budget warnings. |
+
+## Isolated Compose Profile Revalidation (2026-11-01)
+
+### Scope and implementation evidence
+
+This follow-up validates the latest `frontend/nginx.conf` change that resolves the optional Keycloak proxy hostname at request time, so Nginx can start in the unauthenticated `app` profile without a Keycloak container. The task branch HEAD before this follow-up was `4ad00c23d465c1205117f30dbbffe4ff272f2269`, descending from the validated local-main source commit `3153b5a9760c788b1b71f4faa618f96695d9da08`; this pass also included the uncommitted working-tree changes under review. The primary local checkout was not read for writes or modified.
+
+Evidence in the working tree: `frontend/nginx.conf:77-83` configures Docker DNS resolution at request time for `/id/`; `docker-compose.yml:42,95` provides the configured public web origin and Keycloak canonical hostname; `docker/keycloak/queryforge-realm.json.template:6-10,28-29` enables the account forms and uses the configured redirect/origin; `src/main/resources/application-local-auth.properties:22-23` constructs the public authorization URL from `QF_WEB_BASE_URL`.
+
+### Executed validation
+
+| Exact command / check | Result |
+|---|---|
+| `docker compose -p qf-phase15-default-20261101 --profile app up -d --build --wait` with disposable DB/admin interpolation values and ports `41180`, `41181`, `49150` | **Passed on retry:** database, backend, and frontend became healthy; Keycloak was not started. The first attempt, without `QF_KEYCLOAK_ADMIN`, stopped at Compose variable interpolation before creating services. |
+| `curl.exe --silent --output NUL --write-out '%{http_code}' http://localhost:41180/` | **Passed:** HTTP 200. |
+| `curl.exe --silent --output NUL --write-out '%{http_code}' http://localhost:41181/actuator/health` | **Passed:** HTTP 200. |
+| `Set-Location frontend; $env:QF_REAL_STACK='1'; $env:PLAYWRIGHT_BASE_URL='http://localhost:41080'; npm run e2e -- e2e/real-stack.spec.ts` | **Passed:** 9 passed, 1 skipped (10 tests). The suite covered the branded Keycloak login and visible registration/reset forms, viewer/operator access, CSRF rejection, run creation/cancellation/completion, run artifacts, comparison, and sign-out. The skipped explain-plan test had no historical run with an explain-plan artifact. |
+| `docker compose -p qf-phase15-default-20261101 down --volumes --remove-orphans`; `docker compose -p qf-phase15-validation-20261101 down --volumes --remove-orphans` | **Passed:** only the two named disposable projects and their volumes were removed. The desktop-started `qf-docker-proxy` was left running and untouched. |
+| `Test-Path "$env:TEMP\qf-oidc-validation-20261101.txt"` after removing that exact temporary file; `docker ps --format '{{.Names}} {{.Status}}'` | **Passed:** temporary client-secret file absent; only `qf-docker-proxy` remained running. |
+
+### Status update and limits
+
+- **UX-001: Partial.** The current realm/theme configuration and authenticated browser test confirm the branded login plus visible registration and password-reset forms. The isolated Mailpit service could not bind its listener (`listen tcp 0.0.0.0:8025: socket: function not implemented`), so registration/reset email delivery and a completed email-mediated password reset were not verified. Do not treat form visibility as proof that email delivery works.
+- **App-only proxy startup: verified for this isolated Compose run.** With Keycloak omitted, Nginx and the rest of the app profile reached healthy status and returned HTTP 200 on the frontend and backend health endpoint. This does not test OIDC in the app-only profile.
+- The authenticated Playwright run is isolated local evidence, not production validation. It used the disposable validation stack and no production credentials/data. No services remain from either validation project.
+- This update does not close all checked Phase 1-5 claims. Partial/failed statuses, the Mailpit email-delivery blocker, and environment-gated checks listed above remain open; no Phases 6-7 work was done.
+
+## Frontend Lockfile and Build Revalidation (2026-11-01)
+
+The pending frontend manifest/lockfile synchronization adds the axe packages required by the existing accessibility test suite and makes clean locked installs reproducible. The validation ran in `frontend` on task branch HEAD `4ad00c23d465c1205117f30dbbffe4ff272f2269`, with the pending task changes present.
+
+| Exact command | Result |
+|---|---|
+| `npm ci` | **Passed:** 317 packages installed; 318 audited; 0 vulnerabilities. |
+| `npm test` | **Passed:** 41 tests across 6 files. |
+| `npm run build:analyze` | **Passed:** production build and `browser-stats.json` generated. Initial raw bundle 358.53 kB (estimated transfer 97.82 kB). Existing Angular optional-chain warnings and the run-detail component CSS budget warning remain. |
+| `npm audit --audit-level=high` | **Passed:** 0 vulnerabilities. |
+
+These are frontend-local checks; the authenticated Compose E2E and app-only Compose results are recorded in the preceding follow-up. The overall Phase 1-5 audit remains open as described above.
