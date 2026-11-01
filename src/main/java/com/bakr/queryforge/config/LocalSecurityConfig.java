@@ -14,11 +14,8 @@ public class LocalSecurityConfig {
     @Bean
     SecurityFilterChain localSecurityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf
-                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                        .ignoringRequestMatchers("/actuator/**", "/api/auth/session"))
+                .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/actuator/**", "/api/auth/session").permitAll()
                         .anyRequest().permitAll());
         return http.build();
     }
