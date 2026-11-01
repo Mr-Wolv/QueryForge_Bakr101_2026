@@ -39,7 +39,6 @@ services:
       # environment: secrets become properties, and the client secret resolves to the
       # file content instead of its path.
       SPRING_CONFIG_IMPORT: optional:configtree:/run/secrets/
-      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_QUERYFORGE_CLIENT_SECRET: $${qf_oidc_client_secret}
       DB_URL: jdbc:postgresql://db:5432/queryforge
       DB_USER: queryforge
       DB_PASSWORD: ${QF_DB_PASSWORD:?Set QF_DB_PASSWORD}
