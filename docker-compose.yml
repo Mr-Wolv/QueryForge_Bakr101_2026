@@ -141,7 +141,7 @@ services:
   # the previous Prometheus config referenced a service that was never defined.
   postgres-exporter:
     profiles: ["monitoring"]
-    image: prometheuscommunity/postgres-exporter@sha256:9fca39a4307092387b7de884bed4b62205cb88a6a5fdb423b9a70ea80b34efb3
+    image: prometheuscommunity/postgres-exporter@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e
     environment:
       DATA_SOURCE_URI: db:5432/queryforge?sslmode=disable
       DATA_SOURCE_USER: queryforge
