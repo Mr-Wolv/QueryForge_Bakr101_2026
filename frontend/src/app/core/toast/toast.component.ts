@@ -1,6 +1,6 @@
-import { Component, input, computed, effect, inject } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ToastService, Toast } from './toast.service';
+import { ToastService } from './toast.service';
 
 @Component({
   selector: 'app-toast',
@@ -8,9 +8,9 @@ import { ToastService, Toast } from './toast.service';
   imports: [CommonModule],
   template: `
     <div class="toasts" aria-live="polite" aria-atomic="true">
-      <div *ngFor="let t of toasts()" class="toast" [class.error]="t.type === 'error'" [class.success]="t.type === 'success'">
+      <div *ngFor="let t of toasts$ | async" class="toast" [class.error]="t.type === 'error'" [class.success]="t.type === 'success'">
         <span class="message">{{ t.message }}</span>
-        <button class="close" type="button" (click)="dismiss(t.id)">×</button>
+        <button class="close" type="button" aria-label="Dismiss notification" (click)="dismiss(t.id)">×</button>
       </div>
     </div>
   `,
@@ -27,7 +27,7 @@ import { ToastService, Toast } from './toast.service';
 })
 export class ToastComponent {
   private toastService = inject(ToastService);
-  toasts = this.toastService.toasts$;
+  toasts$ = this.toastService.toasts$;
 
   dismiss(id: string) {
     this.toastService.dismiss(id);

@@ -80,8 +80,8 @@
 
 | ID | Finding | Severity | Evidence | Fix |
 |----|---------|----------|----------|-----|
-| SEC-001 | **Keycloak client secret in plaintext in Spring properties** | Critical | `application-local-auth.properties:12` `spring.security.oauth2.client.registration.queryforge.client-secret=queryforge-local-secret` | Use Docker secrets / env substitution (`${QF_OIDC_CLIENT_SECRET_FILE}`) |
-| SEC-011 | **Keycloak client secret in plaintext in realm JSON import** | Critical | `docker/keycloak/queryforge-realm.json:14` `"secret": "queryforge-local-secret"` | Use Docker secrets / env substitution at import time |
+| SEC-001 | **Keycloak client secret in plaintext in Spring properties** | Critical | `application-local-auth.properties:12` `spring.security.oauth2.client.registration.queryforge.client-secret=[redacted local fixture literal]` | Use Docker secrets / env substitution (`${QF_OIDC_CLIENT_SECRET_FILE}`) |
+| SEC-011 | **Keycloak client secret in plaintext in realm JSON import** | Critical | `docker/keycloak/queryforge-realm.json:14` `"secret": "[redacted local fixture literal]"` | Use Docker secrets / env substitution at import time |
 | SEC-002 | **Keycloak admin password in plaintext in Compose** | Critical | `docker-compose.yml:87` `KC_BOOTSTRAP_ADMIN_PASSWORD: ${QF_KEYCLOAK_ADMIN_PASSWORD:-admin-local-only}` | Require env var; no default |
 | SEC-003 | **PostgreSQL password in Compose with weak default** | High | `docker-compose.yml:8` `POSTGRES_PASSWORD: ${QF_DB_PASSWORD:-queryforge}` | Require strong `QF_DB_PASSWORD` |
 | SEC-004 | **No CSP nonce for inline scripts in nginx** | Medium | `frontend/nginx.conf` has CSP but inline scripts in Angular need nonce | Add `script-src 'self' 'nonce-...'` |
@@ -283,3 +283,231 @@
 - [ ] Docs alignment with codebase: README, operations, API docs verified against actual code and endpoints
 - [ ] GitHub clean public repo readiness: no secrets, LICENSE, CONTRIBUTING, CODE_OF_CONDUCT, issue/PR templates, clean history
 - [ ] Brute live-stack application testing: end-to-end against real running stack (backend + frontend + Keycloak + Postgres), Playwright + k6, cross-service attribution; tests must exercise EVERY possible action in the live system (not just documented behavior) to surface defects
+
+## Phase 1–5 Verification Audit (2026-11-01)
+
+### Scope and method
+
+- **Source snapshot:** local Git `main` commit `3153b5a9760c788b1b71f4faa618f96695d9da08` (47 commits ahead of `origin/main` when checked). The isolated worktree was detached at this exact commit for inspection. The primary checkout remained clean and read-only; no code, configuration, deployment, or commit changes were made.
+- **Document baseline:** the untracked source file `D:\QueryForge_Bakr101_2026\audit_findings.md` was read without changing it. The pre-existing isolated-worktree audit document matched it after newline normalization. Because the Windows worktree is case-insensitive, the lowercase destination resolves to its existing tracked `AUDIT_FINDINGS.md`; a separate lowercase root file cannot coexist there. This section is appended only; the original findings and checked boxes above are preserved as historical claims, not endorsed by this adjudication. The primary local source file was not changed.
+- **Evidence types:** statuses below distinguish source/config inspection from executed checks. A configured job is not represented as a successful run. Live-stack, production, multi-OS, OWASP Dependency Check, actual multi-architecture image builds, and k6 checks were not run.
+- **Status meanings:** **Verified** = the stated source/configuration claim is present; **Partial** = some elements exist but the complete claim is not met; **Failed** = inspected implementation contradicts the claim; **Not verified** = insufficient evidence to adjudicate; **Blocked** = the relevant check could not run.
+- File line numbers are 1-based at the stated source commit.
+
+### Executed validation record
+
+These commands were run in the isolated worktree at the exact source SHA above during the preceding validation pass in project session `0a94d5ae-58ba-4624-8070-e5d199c93581`. They were not rerun for this documentation-only append.
+
+| Command | Result |
+|---|---|
+| `mvn -B -ntp test` | **Passed:** 197 tests; 0 failures, errors, or skips. |
+| `mvn -B -ntp test '-Dspring.profiles.active=local-auth'` | **Failed:** 197 tests; 13 failures, 0 errors. Ten failures were in `ProductApiFunctionalTest`; three were in `FilterRegressionTest`. |
+| `npm test` (from `frontend`) | **Passed:** 41 tests across 6 test files. |
+| `npm run build` (from `frontend`) | **Failed:** Angular TS2349 at `frontend/src/app/core/toast/toast.component.ts:11`; the template invokes `toasts()` although it is an `Observable<Toast[]>`. |
+| `npm ci` (from `frontend`) | **Failed:** `package.json` requires `@axe-core/playwright` and `axe-core`, but the lockfile lacks the required entries (`@axe-core/playwright@4.14.0`, `axe-core@4.14.0`). |
+| `npm audit --audit-level=high` (after installing without changing package manifests/lockfile) | **Passed:** 0 reported vulnerabilities. This does not establish that the normal locked CI install succeeds. |
+| `$env:PLAYWRIGHT_PORT='43129'; npx playwright test e2e/a11y.spec.ts` (from `frontend`) | **Blocked:** Playwright's local server failed to compile on the same TS2349 error and timed out after 120 seconds; no axe scan completed. |
+| `docker compose config --quiet` | **Passed:** config-only validation with disposable validation values; no service was started. |
+| `docker compose -f docker-compose.production.yml config --quiet` | **Passed:** config-only validation with temporary dummy secret files and validation values; no service was started. |
+
+No live stack, real OIDC provider, production service, or k6 workload was exercised. The OWASP Dependency Check command is present in CI but was not run locally; its configured invocation requires the CI NVD API key. The multi-OS and multi-architecture jobs were inspected, not executed on their other target platforms.
+
+### Item-by-item adjudication
+
+#### Phase 1 — Security and reproducibility
+
+| Exact checked claim | Status | Source evidence and adjudication |
+|---|---|---|
+| SEC-012: Re-enable CSRF in `LocalSecurityConfig` (dev profile) | **Verified** | `src/main/java/com/bakr/queryforge/config/LocalSecurityConfig.java:17-22` configures cookie CSRF protection and exempts only actuator/session paths. `LocalAuthenticatedSecurityConfigTest` and `ProductionSecurityConfigTest` were included in the passing default test run (2 and 9 tests respectively); the separate local-auth profile run as a whole failed as recorded above. |
+| SEC-013: Create dedicated `ROLE_RUNNER` for benchmark runner (minimal perms) | **Verified** | `src/main/java/com/bakr/queryforge/config/ProductionSecurityConfig.java:62,157-181` limits runner authentication to anonymous GET product reads and grants `ROLE_RUNNER`, not operator. |
+| SEC-017, SEC-018: Remove weak defaults from Compose (Keycloak admin, PG password) | **Partial** | `docker-compose.yml:8,88-89`: PostgreSQL password has no weak fallback, but Keycloak admin username still defaults to `admin`. `.env.example:5,17-18` uses explicit change-me placeholders and an `admin` username; README documents local-only fixture credentials at `README.md:94-102`. Production password inputs are Docker secrets (`docker-compose.production.yml:5-8,257-265`). Both Compose configurations passed config-only validation; no service was started. |
+| SEC-001, SEC-011: Remove secrets from repo; require env vars / Docker secrets | **Partial** | `git ls-files` at the exact local-main commit confirms `cookies.txt` and `secrets/qf_oidc_client_secret.txt` are tracked. The latter's trimmed content was safely compared, without emitting it, and matches the documented dummy local Keycloak fixture literal `[redacted local fixture literal]`; the realm also declares that fixture value at `docker/keycloak/queryforge-realm.json:25`. The cookie jar contains one `XSRF-TOKEN` row for `127.0.0.1` with session expiry; no cookie value was copied or displayed, and validity cannot be inferred. No production credential was identified from this limited check, but the tracked local fixture/token material still contradicts a strict remove-secrets-from-repository claim. Production Compose uses secret files (`docker-compose.production.yml:5-8,257-265`); local Compose still mounts a client-secret file (`docker-compose.yml:49,190-191`). Treat any unrecognized/non-dummy value as potentially active and rotate it; the values assessed here were the local fixture and loopback XSRF token, not a verified production credential. |
+| SEC-005: Add authorization to SSE endpoint (`@PreAuthorize`) | **Verified** | `src/main/java/com/bakr/queryforge/experiment/ExperimentRunController.java:75-76` protects the run event endpoint with `hasRole('OPERATOR')`; the production security chain also requires authentication for other `/api/**` requests (`ProductionSecurityConfig.java:68`). |
+| SEC-006: Prefer run-scoped artifact endpoint; deprecate global (`@Deprecated` + Deprecation header) | **Verified** | Run-scoped retrieval is at `src/main/java/com/bakr/queryforge/experiment/ExperimentRunController.java:142-151`; the global controller is deprecated and returns deprecation/successor headers at `src/main/java/com/bakr/queryforge/experiment/ArtifactController.java:18,27-38,50-62`. Controller/security behavior was not independently exercised against a live stack. |
+| SEC-010: Add OWASP Dependency Check + npm audit to CI | **Partial** | `.github/workflows/ci.yml:53-54,77` configures both. The locked frontend install failed due the axe package lock mismatch, so the CI audit path is not currently reproducible with `npm ci`. Local audit after a non-lock-mutating install reported 0 vulnerabilities. OWASP scanning was not executed locally. |
+| REP-001, REP-007: Enforce deterministic seeds in data gen + k6 | **Verified** | `scripts/generate-data.py:17,23-25,45-46` defaults to seed 42 and uses per-row seeded RNG; `benchmark/k6/common.js:6-9,37-39` defaults seeded RNG to 42, consumed by `search.js:29`, `pagination.js:66`, and `point.js:27`. No k6 workload was run. |
+| REP-004: Full environment fingerprint in run manifest | **Partial** | `src/main/java/com/bakr/queryforge/experiment/EnvironmentFingerprintService.java:79-114,132-148` records app commit, Java/vendor, OS/architecture, database/version, row count/indexes, CPU/memory, and capture time. It does not record the k6 runner version or a complete configuration fingerprint; “full” is therefore not established. |
+| REP-005: Pin Docker images to SHA digests | **Partial** | Local Compose images are digest-pinned (e.g. `docker-compose.yml:4,85,120,133,144,160,175`); production Compose still uses mutable tags (`docker-compose.production.yml:3,112,140,165`). |
+
+#### Phase 2 — Performance and portability
+
+| Exact checked claim | Status | Source evidence and adjudication |
+|---|---|---|
+| PER-009: Fix N+1 in run history — DB-level pagination with `Pageable` | **Partial** | `src/main/java/com/bakr/queryforge/experiment/RunPersistenceService.java:31-34` uses `PageRequest` for unfiltered history; filtered history loads all matching rows at `:36-40` before slicing. No entity artifact relationship is present in `ExperimentRunEntity.java:15-50`, so the stated N+1 is not evident in that entity, but complete DB pagination is not implemented. |
+| PER-001, PER-002: N+1 N/A (runs are file-based; `findByTemplate` + `listByTemplate` now paginated, dead `findAll()` removed) | **Partial** | The current run entity has scalar columns rather than artifact relationships (`src/main/java/com/bakr/queryforge/entity/ExperimentRunEntity.java:15-50`), so the specific artifact N+1 claim is not shown. However `ExperimentRunRepository.java:11-12` returns full lists for state/template queries; `RunPersistenceService.java:36-40,51` and `ExperimentRunService.java:61-69` paginate after loading. Repository `findAll(Pageable)` remains intentionally used for unfiltered paging (`RunPersistenceService.java:31-34`). |
+| PER-006: Tune HikariCP pool for benchmark concurrency | **Verified** | `src/main/resources/application.properties:7-12` sets maximum/minimum pool sizes and connection/idle/lifetime timeouts. |
+| POR-001, POR-008: Make base URLs fully configurable (`__QF_API_BASE__`) | **Partial** | Browser API and SSE clients accept `window.__QF_API_BASE__` (`frontend/src/app/services/api-client.service.ts:10`; `frontend/src/app/services/sse.service.ts:6`). The runner still hardcodes `BASE_URL=http://127.0.0.1:8080` (`src/main/java/com/bakr/queryforge/experiment/runner/K6RunnerAdapter.java:68`), and imported Keycloak redirect URIs are local literals (`docker/keycloak/queryforge-realm.json:28`). |
+| POR-006: Add `.gitattributes` for LF normalization | **Verified** | `.gitattributes:1,11-12` sets text normalization/default LF and explicit LF for shell/Python files. |
+| POR-007: Add multi-arch Docker build job to CI (buildx, linux/amd64+arm64) | **Verified** | `.github/workflows/ci.yml:183-195` configures QEMU/Buildx and `linux/amd64,linux/arm64`. This is source/config verification only; the multi-architecture build was not executed. |
+| POR-012: Create `.env.example` with all `QF_*` vars | **Verified** | `.env.example` documents local and production QF variables; a name comparison against both Compose files found no Compose-used `QF_*` variable absent from the example. Key entries include `.env.example:5-29`. |
+
+#### Phase 3 — UX polish
+
+| Exact checked claim | Status | Source evidence and adjudication |
+|---|---|---|
+| UX-001: Enable Keycloak registration + forgot password + custom theme | **Verified** | `docker/keycloak/queryforge-realm.json:6,9` enables registration/reset; `docker-compose.yml:101-105` mounts/configures the theme and `docker/keycloak/themes/queryforge/` contains theme assets. Local browser/Keycloak flow was not run in this pass. |
+| UX-025: Add “Rerun with same params” endpoint + button | **Verified** | Backend endpoint `src/main/java/com/bakr/queryforge/experiment/ExperimentRunController.java:114-119` recreates from saved run parameters; UI button and handler are at `frontend/src/app/components/run-detail/run-detail.component.ts:51-52,373-388`; API call is at `frontend/src/app/services/api-client.service.ts:80-83`. |
+| UX-015: Add column sorting to run history table | **Verified** | `frontend/src/app/components/runs/runs.component.ts:47-51,158-175` provides clickable sort controls and sorting. Sorting applies to the currently loaded page, not the complete history. |
+| UX-016: Add pagination UI to run history | **Verified** | `frontend/src/app/components/runs/runs.component.ts:62-65,86-87,116-119,134-139` provides previous/next controls and requests pages of 20. Backend server-side sorting/filter support remains incomplete (see Phase 2). |
+| UX-026: Add bulk artifact download (ZIP) | **Verified** | ZIP endpoint is implemented in `src/main/java/com/bakr/queryforge/experiment/ExperimentRunController.java:155-174`; download action and API client are in `frontend/src/app/components/run-detail/run-detail.component.ts:115,391-408` and `frontend/src/app/services/api-client.service.ts:86-88`. |
+| UX-019: Structured live logs with timestamps/levels/search | **Partial** | Search and level parsing are at `frontend/src/app/components/run-detail/run-detail.component.ts:20,67,271-278,447-450`, but timestamp is generated on browser receipt (`:272`) and level is inferred from message text (`:274-278`), not supplied as structured backend fields. |
+| UX-020: Comparison history + multi-run support | **Partial** | Comparison history is implemented at `frontend/src/app/components/compare/compare.component.ts:130-163,194-205`; comparison form has only baseline and candidate selectors (`:42-52`) and submits a two-run comparison (`:252-275`). Multi-run comparison is not present. |
+| UX-021: Plan cost highlighting + diff mode | **Partial** | Cost scoring/highlighting exists in `frontend/src/app/components/plan-explorer/plan-explorer.component.ts:142-159` and `frontend/src/app/components/plan-node/plan-node.component.ts:17-40`. No plan-to-plan diff mode was found; comparison diffs address run environment/metrics instead (`src/main/java/com/bakr/queryforge/experiment/ComparisonService.java:77-160`). |
+| UX-018: Add “copy run ID” button with toast feedback | **Verified** | Button/copy/toast handling is at `frontend/src/app/components/run-detail/run-detail.component.ts:36-38,364-370`. |
+| UX-017: Link empty state to `/experiments` | **Verified** | `frontend/src/app/components/runs/runs.component.ts:68-72` links the empty run-history state to the experiment catalog. |
+
+#### Phase 4 — Maintainability and CI/CD
+
+| Exact checked claim | Status | Source evidence and adjudication |
+|---|---|---|
+| MAI-001: Split `ExperimentOrchestrator` into 4 focused classes | **Failed** | `RunScheduler.java:6-9`, `ProcessExecutor.java:6-9`, `ManifestWriter.java:6-9`, and `RunEventPublisher.java:6-9` under `src/main/java/com/bakr/queryforge/experiment/` are empty Spring components with only constructors. `ExperimentOrchestrator.java:45,71,97,152-210,322-348,448-490,528-600,682-768` still owns scheduling, runner execution, recovery, manifest writing, validation, run-ID generation, and log tailing. |
+| MAI-002: Split `K6RunnerAdapter` into generator/runner/parser | **Failed** | `src/main/java/com/bakr/queryforge/experiment/runner/K6RunnerAdapter.java:23,47-90,95-107,157-197` retains command construction, process launch, summary lookup, environment conversion, output draining, and script mapping in one class; the requested generator/runner/parser split is not present. |
+| MAI-003: Split `ApiService` into client/cache/SSE services | **Verified** | Angular `ApiService`, `ApiClient`, `CacheService`, and `SseService` are separate (`frontend/src/app/services/api.service.ts:117-122`, `frontend/src/app/services/api-client.service.ts:7-10`, `frontend/src/app/services/cache.service.ts:6-9`, `frontend/src/app/services/sse.service.ts:4-7`). Frontend unit tests passed 41/41; production build remains blocked separately. |
+| MAI-012: Split `PlanParser` into tokenizer/tree builder/node factory | **Partial** | Helper files exist (`src/main/java/com/bakr/queryforge/artifact/PlanTokenizer.java`, `PlanTreeBuilder.java`, `PlanNodeFactory.java`), but `PlanParser.java:18-119` still owns parsing and tree assembly; its tokenizer/tree-builder fields are not used in that method and helper calls are partly recreated at `:125-133`. |
+| MAI-013: Extract comparison report rendering to template engine | **Partial** | A renderer was extracted and called from `ComparisonService.java:163-164`, but `ComparisonReportRenderer.java:9-60,66-108` manually builds Markdown/HTML with `StringBuilder`; no template engine is used. |
+| MAI-020: Enable strict TypeScript config | **Verified** | `frontend/tsconfig.json:7-16` sets `"strict": true`. The build independently fails at `frontend/src/app/core/toast/toast.component.ts:11`, so strict mode does not imply a green build. |
+| CIC-010: Multi-OS CI matrix | **Verified** | `.github/workflows/ci.yml:14-18` declares Ubuntu, Windows, and macOS. This local validation ran only on Windows; other matrix jobs were not executed here. |
+| CIC-011: Dependency caching | **Verified** | Maven cache configured at `.github/workflows/ci.yml:27,45`; npm cache at `:68`. |
+| CIC-012: Playwright artifact upload on failure | **Verified** | `.github/workflows/ci.yml:127-137` uploads Playwright report/test-result paths under `if: always()` (including failures). |
+| CIC-017: CI job for `local-auth` profile | **Partial** | Job and profile commands exist at `.github/workflows/ci.yml:35-51`; the corresponding local-auth test command failed with 13/197 failures in this worktree. |
+| CIC-018: Accessibility audit in CI (axe-core) | **Partial** | CI step exists at `.github/workflows/ci.yml:116-122`, but the scan was blocked by the frontend TS2349 compile failure. `frontend/e2e/a11y.spec.ts:6-67` checks keyboard focus, image alt attributes, compare-form labels, and axe on the overview only; this does not establish a complete WCAG 2.2 AA audit. |
+
+#### Phase 5 — Portfolio polish
+
+| Exact checked claim | Status | Source evidence and adjudication |
+|---|---|---|
+| MAI-017: ADRs for all key architectural decisions | **Partial** | Three ADRs exist: `docs/adr/0001-oidc-vs-jwt.md`, `0002-sse-vs-websocket.md`, and `0003-k6-as-runner.md`. No complete decision inventory/traceability establishes that all key decisions are documented. |
+| PER-008: Bundle size budgets + analysis | **Partial** | `frontend/angular.json:59-69` sets initial/style warning/error budgets. No bundle-analysis output/tool was found; the build failed before bundle output could be assessed. |
+| CIC-016: Release automation | **Verified** | `.github/workflows/release.yml:4-21` triggers on version tags and creates a GitHub Release with generated notes. |
+| Documentation sync (README, operations, API) | **Partial** | README states Java 25 (`README.md:7`) but still says Compose provides a database-password fallback (`README.md:264`); `docs/operations.md:107-112` also describes an in-memory run-history snapshot and password fallback inconsistent with the inspected persistence/configuration. `docs/renovation/05-api-contract.md:72-188` omits implemented rerun, ZIP, and comparison-history retrieval routes. |
+| DB-backed runs store: migrate file-based `ExperimentRun` to JPA entity for true DB-level pagination/sorting/filtering, transactional writes, and concurrency safety | **Partial** | Entity/repository/persistence components exist (`ExperimentRunEntity.java:15-50`, `ExperimentRunRepository.java:10-12`, `RunPersistenceService.java:20-51`). But `V3__create_experiment_runs.sql:4-20` is not wired into app/Compose initialization; both Compose files mount only V1 (`docker-compose.yml:17`, `docker-compose.production.yml:18`), and no Flyway/Liquibase wiring was found. Filter/template paging still loads lists (`RunPersistenceService.java:36-40,51`; `ExperimentRunService.java:61-69`), `save` is a plain `repo.save` (`RunPersistenceService.java:20-21`), and the entity has no `@Version` field. Live database schema/state was not checked. |
+| Accessibility audit (WCAG 2.2 AA) — automated axe-core in CI; inputs reviewed for labels; no critical violations in automated scan | **Blocked** | CI and a limited axe spec exist, but the local Playwright scan could not start because Angular compilation fails. No axe results, comprehensive manual label review, or WCAG 2.2 AA audit result can be claimed. |
+| POR-011: Sync Java version in README (25 not 21+) | **Verified** | `README.md:7` states Java 25; `pom.xml:20` sets `java.version` to 25. |
+
+### Risks and recommended gap-closure order
+
+1. **Resolve credential hygiene first:** stop tracking local cookie/secret artifacts and verify Git history for any non-fixture credentials before public release. The assessed client secret is the documented dummy local fixture; `cookies.txt` contains only loopback XSRF cookie metadata in the parsed jar. Never treat that limited assessment as proof that any other historical secret is harmless.
+2. **Restore deterministic frontend CI:** synchronize `package-lock.json` with `package.json`, then fix the `toasts()`/Observable template mismatch; rerun clean `npm ci`, frontend tests/build, and axe.
+3. **Repair the `local-auth` test path:** triage its 13 failing tests and rerun the exact profile command before treating the authenticated CI job as green.
+4. **Wire and complete durable run persistence:** ensure V3 schema is applied in supported deployments, move state/template filtering and pagination into repository queries, and establish transactional/concurrency behavior before asserting database-backed pagination guarantees.
+5. **Close fidelity gaps:** complete base URL coverage, production image digest pinning, source-timestamped structured logs, multi-run/plan-diff behavior if required, functional extraction of maintainability helpers, and documentation/ADR coverage.
+6. **Run gated validations only in appropriate environments:** full multi-OS/multi-arch CI, OWASP Dependency Check with its authorized key, and isolated live-stack/k6 acceptance were not run here. Do not infer production or live-stack readiness from the configuration-only Compose checks.
+
+**Overall adjudication:** the historical Phase 1–5 checkbox claims are not all complete. Several are verified at source/config level, but there are partial and failed claims and blocked validation checks. This audit section is the point-in-time baseline for gap closure, not a remediation record.
+
+## Phase 1–5 Implementation and Verification Update (2026-11-01)
+
+### Scope and provenance
+
+- **Source commit:** `3153b5a9760c788b1b71f4faa618f96695d9da08`; this isolated worktree remains at that exact commit with uncommitted task changes. The primary checkout at `D:\QueryForge_Bakr101_2026` was not modified. No fixes were committed, deployed, or applied to a shared stack.
+- **Scope:** only the checked Phase 1–5 claims above. The original findings and checkbox history are preserved verbatim; this section is the current implementation adjudication and supersedes the earlier verification statuses where evidence has changed.
+- **Docker safety:** the user's desktop-started stack was inspected read-only. Before and after the checks, the only listed container was `qf-docker-proxy`. No application Compose services were started, stopped, restarted, reused, or mutated. The PostgreSQL test used a disposable Testcontainers container which was cleaned up by Testcontainers.
+- **Status meanings:** **Verified** means implementation/configuration and available targeted evidence support the claim; jobs not executed are called out explicitly. **Partial** means the claim still has a substantive gap. **Blocked** means a necessary validation was not safely or successfully performed. **Not verified** means evidence was insufficient.
+
+### Item-by-item current status
+
+#### Phase 1 — Security and reproducibility
+
+| Checked claim | Status | Current source evidence and limits |
+|---|---|---|
+| SEC-012: Re-enable CSRF in `LocalSecurityConfig` | **Verified** | `src/main/java/com/bakr/queryforge/config/LocalSecurityConfig.java:17-22` enables cookie CSRF protection with narrow exemptions. Default Maven tests passed; the dedicated `local-auth` security test also passed. |
+| SEC-013: Dedicated minimal-permission `ROLE_RUNNER` | **Verified** | `src/main/java/com/bakr/queryforge/config/ProductionSecurityConfig.java:157-181` assigns `ROLE_RUNNER` and restricts runner requests to the intended read-only product routes. |
+| SEC-017/018: Remove weak Compose password defaults | **Verified** | `docker-compose.yml:8,91` requires database and Keycloak-admin passwords; production consumes secret files at `docker-compose.production.yml:5-8,257-265`. Both Compose files passed config-only validation with disposable inputs; no services were launched. |
+| SEC-001/011: Remove repository secrets and require environment/Docker secrets | **Partial** | Current source removes `cookies.txt`, `secrets/qf_oidc_client_secret.txt`, and the literal realm JSON; `docker/keycloak/queryforge-realm.json.template:27` uses a placeholder, and `docker/keycloak/render-realm.sh:5-34` reads a mounted secret file and validates it. The historical Git objects are not rewritten. The tracked client-secret file was safely compared without displaying its content and matched the local dummy realm fixture; `cookies.txt` was a loopback XSRF-cookie entry. No value was identified as a production secret. If either value was reused or is not the documented dummy fixture, external invalidation/rotation and history cleanup remain owner actions; neither was performed. |
+| SEC-005: Authorize the SSE endpoint | **Verified** | `src/main/java/com/bakr/queryforge/experiment/ExperimentRunController.java:75-83` protects run events with operator authorization; security tests passed. No live OIDC flow was exercised. |
+| SEC-006: Run-scoped artifact endpoint and deprecation of global endpoint | **Verified** | `ExperimentRunController.java:142-176` serves artifacts under a run and ZIP endpoint; `ArtifactController.java:18,27-38,50-62` deprecates the global route and emits successor/deprecation headers. Controller tests are included in the passing Maven suite. |
+| SEC-010: OWASP Dependency Check and `npm audit` in CI | **Verified** | `.github/workflows/ci.yml:53-54,77` configures both scanners; `npm audit --audit-level=high` reported 0 vulnerabilities. OWASP Dependency Check itself was not executed locally because the CI invocation requires its authorized NVD API key. |
+| REP-001/007: Deterministic data generation and k6 randomness | **Verified** | `scripts/generate-data.py:17,23-29,43-62` seeds per-row RNG; `benchmark/k6/common.js:6-9,37-39` supplies seeded random selection used by the workload scripts. Two generated temporary CSVs for the same rows/seed had identical SHA-256. No k6 workload was run. |
+| REP-004: Full environment fingerprint in run manifest | **Verified** | `src/main/java/com/bakr/queryforge/experiment/EnvironmentFingerprintService.java:45-115,125-157` records app commit, Java/vendor, OS/architecture, database/version, dataset/index state, CPU/memory, runner name/version/source hash, and a canonical configuration hash. Fingerprint capture remains explicitly best-effort when the database is unavailable. |
+| REP-005: Pin Docker images to SHA digests | **Verified** | Local and production Compose images are digest-pinned, including `docker-compose.yml:4,86,139,150` and `docker-compose.production.yml:3,114,142,167,191`. Image pulls/builds were not part of this check. |
+
+#### Phase 2 — Performance and portability
+
+| Checked claim | Status | Current source evidence and limits |
+|---|---|---|
+| PER-009: Database-level run pagination with `Pageable` | **Verified** | `src/main/java/com/bakr/queryforge/experiment/RunPersistenceService.java:53-87` applies filter `Specification`, allowlisted sort, and `PageRequest` in the repository query. The disposable PostgreSQL integration test passed all 5 tests, including migration and pagination coverage. |
+| PER-001/002: Resolve run-history N+1 / remove unbounded lookups | **Verified** | `ExperimentRunEntity.java:15-50` stores run/artifact data without a lazy artifact relation, while run reads use pageable repository queries (`RunPersistenceService.java:53-87`). The specific per-run artifact N+1 described in the original finding is not present in this model. |
+| PER-006: Tune HikariCP for benchmark concurrency | **Verified** | `src/main/resources/application.properties:6-12` configures pool capacity and timeout values for the stated workload. |
+| POR-001/008: Configurable callback/API/runner base URLs | **Verified** | `docker-compose.yml:41-42,103` passes configurable runner and web origins; `docker/keycloak/render-realm.sh:21-34` renders the configured origin. Frontend API base configuration is in `frontend/src/app/services/api-client.service.ts:10`; runner URL resolution is in `K6CommandGenerator.java:71-91`. Custom-origin realm rendering passed with a disposable dummy secret; no user credential was used. |
+| POR-006: LF normalization | **Verified** | `.gitattributes:1,11-12` enforces normalized text and LF for scripts. `git diff --check` passed; Git emitted only existing working-copy CRLF normalization warnings for other files. |
+| POR-007: Multi-architecture Docker CI | **Verified** | `.github/workflows/ci.yml:197-208` configures QEMU/Buildx for `linux/amd64,linux/arm64` for backend and frontend images. The actual Buildx builds were not executed locally. |
+| POR-012: `.env.example` covers QF configuration | **Verified** | `.env.example:1-47` lists local and production QF variables, including production-only values as commented entries. Config validation with only this local example correctly lacks required production values; the production config passed when supplied disposable required values. |
+
+#### Phase 3 — UX polish
+
+| Checked claim | Status | Current source evidence and limits |
+|---|---|---|
+| UX-001: Registration, password reset, and custom Keycloak theme | **Verified** | `docker/keycloak/queryforge-realm.json.template` enables the account features; `docker/keycloak/themes/queryforge/` contains the theme and Compose mounts/configures it at `docker-compose.yml:101-108`. No interactive browser-to-Keycloak authentication was run. |
+| UX-025: Rerun with the original parameters | **Verified** | `ExperimentRunController.java:114-119`, `frontend/src/app/components/run-detail/run-detail.component.ts:51-52,377-389`, and `frontend/src/app/services/api-client.service.ts:80-83` implement the endpoint, action, and request. |
+| UX-015: Sort run-history columns | **Verified** | `frontend/src/app/components/runs/runs.component.ts:47-52,158-175` provides clickable sort controls; backend query sort is applied in `RunPersistenceService.java:57-87`. |
+| UX-016: Run-history pagination UI | **Verified** | `runs.component.ts:62-65,89,116-139` exposes previous/next and page sizing and requests server pages. |
+| UX-026: Bulk artifact ZIP download | **Verified** | `ExperimentRunController.java:155-176` creates the run-scoped archive; `run-detail.component.ts:115,391-408` downloads it. |
+| UX-019: Structured searchable live logs with timestamp and severity | **Verified** | `RunEventBus.java:49-67` emits server-captured timestamp, normalized severity, and message; `run-detail.component.ts:232-281,447-454` renders and searches the structured event data. `RunEventBusTest` covers event fields. |
+| UX-020: Comparison history and multi-run comparison | **Verified** | `frontend/src/app/components/compare/compare.component.ts:47-55,130-163,252-300` selects one baseline and multiple candidates, requests each comparison, and loads history. |
+| UX-021: Plan cost highlighting and diff | **Verified** | `frontend/src/app/components/plan-explorer/plan-explorer.component.ts:42-67,184-230,260-293` compares plans and highlights estimated-cost changes. |
+| UX-018: Copy run ID with toast feedback | **Verified** | `frontend/src/app/components/run-detail/run-detail.component.ts:36-38,364-370` provides the copy action and toast. |
+| UX-017: Empty state links to experiments | **Verified** | `frontend/src/app/components/runs/runs.component.ts:68-72` links the empty run state to the experiment catalog. |
+
+#### Phase 4 — Maintainability and CI/CD
+
+| Checked claim | Status | Current source evidence and limits |
+|---|---|---|
+| MAI-001: Split `ExperimentOrchestrator` into focused classes | **Verified** | `ExperimentOrchestrator.java:97,210-245,439` delegates scheduling/execution/manifest work to `RunScheduler`, `ProcessExecutor`, and `ManifestWriter`; event publication is delegated to `RunEventPublisher`. |
+| MAI-002: Split k6 generator, process runner, and summary parser | **Verified** | `K6RunnerAdapter.java:48-49,88-99` composes `K6CommandGenerator`, `K6ProcessRunner`, and `K6SummaryParser`; the adapter delegates each responsibility. |
+| MAI-003: Split frontend API client/cache/SSE concerns | **Verified** | `frontend/src/app/services/api.service.ts:5,117-122`, `api-client.service.ts:7-10`, `cache.service.ts:6-9`, and `sse.service.ts:4-7` show distinct services. |
+| MAI-012: Split plan parser into tokenizer/tree builder/node factory | **Verified** | `src/main/java/com/bakr/queryforge/artifact/PlanParser.java:8-12,36-80` uses `PlanTokenizer`, `PlanNodeFactory`, and `PlanTreeBuilder`; implementations reside in separate files. |
+| MAI-013: Extract comparison rendering to a template engine | **Verified** | `ComparisonReportRenderer.java:14-76` renders both formats through Thymeleaf; `src/main/resources/templates/comparison-report.html` and `comparison-report.md` hold presentation. `ComparisonService.java:170-171` delegates both outputs. `ComparisonServiceTest` now also asserts Markdown output contains no unresolved Thymeleaf directives. |
+| MAI-020: Strict TypeScript | **Verified** | `frontend/tsconfig.json:12,20-21` enables strict checks. `npm run build:analyze` completed successfully after fixing the earlier toast template type error. |
+| CIC-010: Multi-OS CI matrix | **Verified** | `.github/workflows/ci.yml:14-18` configures Ubuntu, Windows, and macOS. This worktree ran on Windows only; other matrix runners were not executed. |
+| CIC-011: Dependency caching | **Verified** | `.github/workflows/ci.yml:27,45,68` configures Maven and npm dependency caches. |
+| CIC-012: Upload Playwright artifacts on failure | **Verified** | `.github/workflows/ci.yml:136-145` uploads reports/results under an always-running condition. |
+| CIC-017: CI local-auth test job | **Verified** | `.github/workflows/ci.yml:35-51` compiles the profile and targets `LocalAuthenticatedSecurityConfigTest`. That focused command passed 2/2 tests. The broader full-suite local-auth command still fails 13 tests because unauthenticated functional tests run under the authenticated profile. |
+| CIC-018: Axe accessibility audit in CI | **Verified** | `.github/workflows/ci.yml:125-128` runs Playwright axe checks; `frontend/e2e/a11y.spec.ts:50-68` scans `/`, `/experiments`, `/runs`, and `/compare`. The four-route scan passed with no violations. This does not constitute a complete manual WCAG audit. |
+
+#### Phase 5 — Portfolio polish
+
+| Checked claim | Status | Current source evidence and limits |
+|---|---|---|
+| MAI-017: ADRs for all key architectural decisions | **Partial** | Four ADRs now exist (`docs/adr/0001-oidc-vs-jwt.md` through `0004-postgres-run-store-with-flyway-baseline.md`), covering identity, SSE, k6, and the run-store/migration decision. There is still no maintained decision inventory proving every key decision is documented. |
+| PER-008: Bundle budgets and analysis | **Verified** | `frontend/angular.json:59-69` sets warning/error budgets; `frontend/package.json:8` exposes `build:analyze`. `npm run build:analyze` succeeded and emitted `frontend/dist/frontend/browser-stats.json`. |
+| CIC-016: Release automation | **Verified** | `.github/workflows/release.yml:4-21` creates a GitHub Release from version tags. The release workflow itself was not triggered. |
+| Documentation sync (README, operations, API) | **Verified** | `README.md:7,41-116`, `docs/operations.md:115-159`, and `docs/renovation/05-api-contract.md:107-219` were updated for Java 25, required secret/config inputs, the V1/V2 baseline and V3/V4 run store, pagination/sorting, rerun, ZIP, comparison history, and structured log events. This was a targeted consistency pass, not a complete API contract conformance test. |
+| DB-backed runs with DB pagination, transactional writes, and concurrency safety | **Verified** | `ExperimentRunEntity.java:15-50` includes persisted run/artifact/version fields; `RunPersistenceService.java:31-87` uses transactions, filtering, sorting, and `PageRequest`; migrations are under `db/flyway/`, configured in `application.properties:18-20`, with optimistic locking at `ExperimentRunEntity.java:50`. The approved V1/V2 baseline is preserved and V2 remains manually managed. Testcontainers verified baseline 2, V3/V4 application, no automatic V2 index, pagination, import idempotency, and concurrent updates. No production database was touched. |
+| Accessibility audit: WCAG 2.2 AA, reviewed labels, no critical violations | **Partial** | Expanded `frontend/e2e/a11y.spec.ts` scans six routes in light and dark modes, checks labels across the form-bearing routes, skip-link keyboard focus/focus indicator, toast naming/dismissal, and image alt attributes. Axe reports no tagged WCAG A/AA violations. No manual screen-reader test (NVDA unavailable) or exhaustive human WCAG 2.2 AA conformance review was performed; do not claim full conformance. |
+| POR-011: README Java version is synchronized to Java 25 | **Verified** | `README.md:7` states Java 25 and `pom.xml` sets Java 25. |
+
+### Executed validation record
+
+These are implementation-worktree results at the source commit stated above. Earlier historical failures are retained in the previous audit section; where a blocker was fixed, the newer result below supersedes it.
+
+| Exact command / check | Result |
+|---|---|
+| `mvn -B -ntp test` | **Passed:** 202 tests, 0 failures, 0 errors, 0 skipped. This full-suite run preceded the final report-template-only refinement; that refinement was separately covered by the focused report tests below. |
+| `mvn -B -ntp '-Dtest=ComparisonServiceTest,ComparisonControllerTest' test` | **Passed after final renderer edit:** 28 tests, 0 failures/errors/skips; verifies Markdown/HTML rendering and controller exports. |
+| `mvn -B -ntp -Dtest=PostgresIntegrationSmokeTest test` | **Passed with Docker:** 5 tests, 0 failures/errors/skips. Testcontainers launched isolated disposable PostgreSQL; logs show Flyway baseline v2 and migrations v3/v4. |
+| `mvn -B -ntp '-Dspring.profiles.active=local-auth' '-Dtest=LocalAuthenticatedSecurityConfigTest' test` | **Passed:** 2 tests. |
+| `mvn -B -ntp test '-Dspring.profiles.active=local-auth'` | **Failed:** 13 failures out of 199 tests; unauthenticated product/filter functional tests are incompatible with this profile. CI now runs the focused security class rather than misapplying the profile to all functional tests. |
+| `npm ci` (in `frontend`) | **Passed:** 317 packages installed; 318 audited. This supersedes the earlier lockfile mismatch after the lockfile was synchronized. |
+| `npm test` (in `frontend`) | **Passed:** 41/41 unit tests. |
+| `npm run build:analyze` (in `frontend`) | **Passed:** Angular build completed and emitted `frontend/dist/frontend/browser-stats.json`; the prior TS2349 toast template error is resolved. |
+| `npm audit --audit-level=high` (in `frontend`) | **Passed:** 0 vulnerabilities reported. |
+| `$env:PLAYWRIGHT_PORT='43129'; npx playwright test e2e/a11y.spec.ts` (in `frontend`) | **Passed:** 4 Playwright tests; axe scanned four routes with no reported violations. Vite logged expected API proxy connection refusals because no backend was running. This was not full-stack E2E or full WCAG certification. |
+| `docker compose --env-file .env.example config --quiet` | **Passed:** local Compose config only; no services started. |
+| `docker compose --env-file .env.example -f docker-compose.production.yml config --quiet` with disposable required `QF_*` values and secret-file paths | **Passed:** production config only; no secrets or production services were used. A first attempt with only the local example correctly failed because production-only required variables were unset. |
+| `docker ps --format '{{.Names}} {{.Status}} {{.Ports}}'` | **Passed read-only inspection:** only `qf-docker-proxy` was listed before and after the isolated test. |
+| `git diff --check`; `git rev-parse HEAD` | **Passed:** no whitespace errors; HEAD remains `3153b5a9760c788b1b71f4faa618f96695d9da08`. Git printed CRLF-normalization warnings for existing working-copy files, not diff-check failures. |
+
+### Remaining risks and action order
+
+1. **Credential history:** current worktree removes the tracked local cookie/secret artifacts, but this does not remove their historical Git blobs. The client secret assessed was the documented dummy fixture; the cookie was a loopback XSRF entry. If either was reused or is not a dummy/local value, the owner must invalidate/rotate it and decide on history cleanup before publishing; no credential action was taken here.
+2. **Partial audit claims:** complete the ADR decision inventory; perform an exhaustive WCAG 2.2 AA/manual label review; and run OWASP Dependency Check with an authorized CI NVD API key. Do not equate configuration or a narrow axe scan with comprehensive verification.
+3. **Unexecuted environment-specific checks:** multi-OS jobs and actual multi-architecture builds were inspected but not run locally; no k6 workload, interactive Keycloak flow, production database, production deployment, or live application stack was exercised. Keep those checks isolated and non-production when scheduled.
+4. **Auth-profile suite:** the focused security tests pass, but the full local-auth profile remains red for 13 tests; either keep the CI scope deliberately focused as configured or make the incompatible functional tests authenticate before expanding that job.
+
+**Current outcome:** checked Phase 1–5 claims are not all complete. The substantive implementation and targeted validation are recorded above; claims explicitly marked **Partial** remain open. No Phase 6–7 work was undertaken.
+
+## Accessibility Follow-up (2026-11-01)
+
+Expanded the axe-core and interaction coverage for the checked WCAG 2.2 AA claim. The audit now scans the overview, experiment catalog, run history, run detail, plan, and comparison routes in both light and dark themes. It waits for the application entrance transition to complete before measuring contrast so the test evaluates stable rendered colors. The first expanded pass found an invalid ARIA `row` role on a div with button children; that role was removed. It also exposed insufficient status/cost badge contrast and an accessible-name mismatch on the run-ID copy button. These were addressed with theme-aware status colors, warning/danger foreground-on-background badges, and an explicit "Copy run ID" name. The muted-text token was darkened for stronger light-theme contrast.
+
+**Validation:** from `frontend`, `$env:PLAYWRIGHT_PORT='43141'; npm run e2e -- e2e/a11y.spec.ts` passed **6/6 tests**. Axe reported no tagged WCAG A/AA violations on all six routes in either theme; the same suite checked programmatic labels on catalog/history/run-detail/plan/compare, first-tab skip-link focus and its focus indicator, toast dismissal naming/behavior, and image alt attributes. The scan waits for the main entrance transition to complete before checking contrast. `npm run build:analyze` passed after the final accessibility edits; Angular still reports existing optional-chain and run-detail CSS-budget warnings. Manual screen-reader testing remains unavailable (NVDA is not installed), so this does not establish full WCAG 2.2 AA conformance.

@@ -61,8 +61,8 @@ const EXPENSIVE_TYPES = new Set(['seq scan', 'index scan', 'bitmap heap scan', '
     .node.cost-medium { background: var(--color-warning-bg); }
     .node.cost-high { background: var(--color-danger-bg); }
     .cost-badge { font-size: 10px; font-weight: 700; margin-left: auto; padding: 1px 6px; border-radius: var(--radius-sm); }
-    .cost-badge.cost-medium { background: var(--color-warning); color: #fff; }
-    .cost-badge.cost-high { background: var(--color-danger); color: #fff; }
+    .cost-badge.cost-medium { background: var(--color-warning-bg); color: var(--color-warning); }
+    .cost-badge.cost-high { background: var(--color-danger-bg); color: var(--color-danger); }
     .head { display: flex; width: 100%; min-width: 0; align-items: center; gap: var(--space-2); padding: 4px 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--color-text-primary); font: inherit; text-align: left; white-space: normal; cursor: pointer; user-select: none; }
     .head:hover { background: var(--color-accent-subtle); }
     .head:disabled { cursor: default; }

@@ -33,7 +33,7 @@ const LEVEL_RE = /^(DEBUG|INFO|WARN|WARNING|ERROR|FATAL|TRACE)\b/i;
       <a class="back" routerLink="/runs">&larr; Run history</a>
       <div class="run-id-header">
         <h1>{{run.id}}</h1>
-        <button class="copy" type="button" (click)="copyRunId()" title="Copy run ID">Copy</button>
+        <button class="copy" type="button" aria-label="Copy run ID" (click)="copyRunId()">Copy</button>
       </div>
       <div class="meta">
         <span>Template: {{run.templateId}}</span>
@@ -64,7 +64,7 @@ const LEVEL_RE = /^(DEBUG|INFO|WARN|WARNING|ERROR|FATAL|TRACE)\b/i;
           <span class="sse-badge" [class.running]="displayState === 'RUNNING'" [class.succeeded]="displayState === 'SUCCEEDED'" [class.failed]="displayState === 'FAILED'">
             Live: {{ displayState }}
           </span>
-          <input class="log-search" type="search" placeholder="Search logs…" [(ngModel)]="logSearch" />
+          <input class="log-search" type="search" aria-label="Search run logs" placeholder="Search logs…" [(ngModel)]="logSearch" />
           <button class="clear" *ngIf="liveLogs.length > 0" (click)="clearLogs()">Clear log</button>
         </div>
         <div class="log-entries">
@@ -225,10 +225,11 @@ export class RunDetailComponent implements OnDestroy {
         }
       });
       this.sse.addEventListener('log', (ev: MessageEvent) => {
-        const text = this.parse(ev)?.text;
-        const stream = this.parse(ev)?.stream ?? 'stdout';
+        const payload = this.parse(ev);
+        const text = payload?.message ?? payload?.text;
+        const stream = payload?.stream ?? 'stdout';
         if (typeof text !== 'string' || text.length === 0) return;
-        const entry = this.parseLog(text, stream);
+        const entry = this.parseLog(text, stream, payload?.level, payload?.at);
         this.liveLogs.push(entry);
         if (this.liveLogs.length > 200) this.liveLogs.shift();
         this.cdr.markForCheck();
@@ -268,12 +269,15 @@ export class RunDetailComponent implements OnDestroy {
     }
   }
 
-  private parseLog(text: string, stream: string): LogEntry {
-    const now = new Date();
-    const time = now.toLocaleTimeString('en-US', { hour12: false });
+  private parseLog(text: string, stream: string, eventLevel?: string, eventAt?: string): LogEntry {
     const levelMatch = text.match(LEVEL_RE);
-    const level = levelMatch ? levelMatch[1].toUpperCase() : 'INFO';
+    const level = eventLevel?.toUpperCase()
+      ?? (levelMatch ? levelMatch[1].toUpperCase() : stream === 'stderr' ? 'ERROR' : 'INFO');
     const message = levelMatch ? text.slice(levelMatch[0].length).trim() : text;
+    const parsedAt = eventAt ? new Date(eventAt) : new Date();
+    const time = Number.isNaN(parsedAt.getTime())
+      ? new Date().toLocaleTimeString('en-US', { hour12: false })
+      : parsedAt.toLocaleTimeString('en-US', { hour12: false });
     return { time, level, message, stream };
   }
 

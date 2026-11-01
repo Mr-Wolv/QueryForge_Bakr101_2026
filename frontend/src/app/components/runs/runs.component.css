@@ -83,7 +83,7 @@
       color: var(--text-muted, #666);
     }
     .state.succeeded {
-      color: var(--success, #2D5A4A);
+      color: var(--color-success);
       background: var(--success-bg, #E6F4ED);
     }
     .state.failed, .state.timed_out {

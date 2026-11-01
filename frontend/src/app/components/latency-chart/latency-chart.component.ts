@@ -12,6 +12,8 @@ import { ChartDataPoint } from '../../services/api.service';
   template: `
     <div class="chart" *ngIf="chartData.datasets[0].data.length > 0; else empty">
       <canvas baseChart
+        role="img"
+        aria-label="Latency percentile chart"
         [type]="chartType"
         [data]="chartData"
         [options]="chartOptions"
