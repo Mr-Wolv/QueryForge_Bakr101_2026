@@ -54,7 +54,7 @@
       "firstName": "Vera",
       "lastName": "Viewer",
       "email": "viewer@queryforge.local",
-      "credentials": [{"type": "password", "value": "viewer-local-only", "temporary": false}],
+      "credentials": [{"type": "password", "value": "${QF_VIEWER_PASSWORD:-viewer-local-only-dev}", "temporary": false}],
       "groups": ["readers"]
     },
     {
@@ -64,7 +64,7 @@
       "firstName": "Owen",
       "lastName": "Operator",
       "email": "operator@queryforge.local",
-      "credentials": [{"type": "password", "value": "operator-local-only", "temporary": false}],
+      "credentials": [{"type": "password", "value": "${QF_OPERATOR_PASSWORD:-operator-local-only-dev}", "temporary": false}],
       "groups": ["benchmark-operators"]
     }
   ]
