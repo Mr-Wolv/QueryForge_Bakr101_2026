@@ -22,6 +22,11 @@ type ParameterField = ExperimentTemplate['parameters'][number];
         <p class="subtitle">Tune each workload before you start. Every run becomes inspectable evidence, not just a number.</p>
       </header>
 
+      <div class="dataset-warning" *ngIf="datasetEmpty" role="status">
+        <strong>The product dataset is empty (0 rows).</strong>
+        Load data before starting a run: a measurement against an empty table is not evidence.
+      </div>
+
       <app-skeleton-card mode="loading" *ngIf="loading" />
       <div class="catalog-error" *ngIf="!loading && loadError" role="alert">
         <p>{{loadError}}</p>
@@ -87,10 +92,13 @@ type ParameterField = ExperimentTemplate['parameters'][number];
             </p>
           </div>
 
-          <button *ngIf="auth.canOperate()" class="launch" type="button" (click)="launch(t.id)" [disabled]="launching">
+          <button *ngIf="auth.canOperate()" class="launch" type="button" (click)="launch(t.id)" [disabled]="launching || datasetEmpty">
             {{launching ? 'Starting…' : 'Start experiment'}}
             <span aria-hidden="true">→</span>
           </button>
+          <p class="empty-dataset-note" *ngIf="auth.canOperate() && datasetEmpty">
+            Load the product dataset to enable this experiment.
+          </p>
           <p *ngIf="!auth.canOperate()" class="read-only-note">An experiment operator must start runs.</p>
         </article>
       </div>
@@ -112,9 +120,35 @@ export class ExperimentsComponent {
   validationErrors: Record<string, Record<string, string>> = {};
   launching = false;
   launchError = '';
+  /** Product rows available to the experiments; null when readiness is unknown. */
+  readinessRowCount: number | null = null;
 
   constructor() {
     this.loadTemplates();
+    this.loadReadiness();
+  }
+
+  /**
+   * Launching against an empty table produces measurements that look real and
+   * mean nothing, so the catalog refuses instead of warning after the fact.
+   */
+  get datasetEmpty(): boolean {
+    return this.readinessRowCount === 0;
+  }
+
+  loadReadiness(): void {
+    this.api.getReadiness().subscribe({
+      next: readiness => {
+        this.readinessRowCount = readiness?.database?.rowCount ?? null;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        // Readiness is advisory here: an unreadable readiness probe must not
+        // block an operator who knows the environment is populated.
+        this.readinessRowCount = null;
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   loadTemplates(): void {
@@ -195,6 +229,11 @@ export class ExperimentsComponent {
   }
 
   launch(templateId: string): void {
+    if (this.datasetEmpty) {
+      this.launchError = 'The product dataset is empty (0 rows). Load data before starting a run.';
+      this.cdr.markForCheck();
+      return;
+    }
     const template = this.templates.find(candidate => candidate.id === templateId);
     if (!template || !this.validateTemplate(template)) return;
 
