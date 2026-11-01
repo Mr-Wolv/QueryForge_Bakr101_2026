@@ -14,9 +14,10 @@ session is labelled as prior evidence.
 
 "100%" here means:
 
-> A dependable, locally deployable QueryForge: authentication enforced, real data loaded, every user
-> workflow verified in the running UI, no open medium-or-higher defects, and a test suite that reproduces
-> its own result on demand.
+> A dependable, locally deployable QueryForge: real data loaded, every user
+> workflow verified in the running UI, no open medium-or-higher defects, and a
+> test suite that reproduces its own result on demand. Authentication is
+> deferred (local-dev only).
 
 Scoring against that definition:
 
@@ -36,27 +37,29 @@ proving and unblocking, not building.
 | --- | --- | --- | --- | --- |
 | Core UI workflows (shell, overview, catalog, runs, run detail, compare) | 25% | All 7 live-session findings fixed, tested and verified in the browser — including a real FAILED run showing its outcome and stderr tail | Live UI session 2026-11-01 + `overview`/`compare`/`experiments`/`run-detail` specs | 98% |
 | Execution engine & orchestration | 20% | Bounded k6 runner, run manifests, artifacts, stderr tailing, duration-unit fix | 143 backend tests green 2026-10-31; QF-DEF-06/07/08 verified fixed | 90% |
-| Authentication & authorization | 15% | Implemented and previously accepted end-to-end; **not running now** | 9/9 real-stack pass 2026-10-31; QF-DEF-01..04, 10, 12 fixed. Unverified today | 85% |
+| Authentication & authorization | 15% | **DEFERRED — auth dropped for local-dev.** Implemented and previously accepted end-to-end on 2026-10-31, but the local-dev stack runs `QF_SPRING_PROFILE=default` with `authEnabled:false`. The `local-auth` profile (Keycloak + Mailpit) was brought up and torn down; C4 is deferred to when auth is re-introduced. | 9/9 real-stack pass 2026-10-31 (prior evidence only); QF-DEF-01..04, 10, 12 fixed | 85% |
 | Evidence integrity (comparisons, plans, artifacts) | 10% | Verdict engine with compatibility blockers/warnings, exports, run-scoped plan route; self-comparison now refused client-side | Backend comparison tests; BUG-QF-004 fixed 2026-11-01 | 90% |
 | Test automation & CI reproducibility | 10% | **Fixed.** The abort was a native V8 OOM; a bounded Vitest fork pool restores reproducibility (`50 tests, 9 files, exit 0`, no env vars) | `frontend/vitest.config.ts`, `logs/qa-test-config.log` | 92% |
 | Data/environment readiness | 10% | **1,000,000 rows loaded and served by the API.** The stack had been running against an empty H2 database while the load went to the Compose Postgres; it now runs on PostgreSQL 17.11 | `/api/lab/readiness` `rowCount: 1000000`, 2026-11-01 | 95% |
 | Ops: monitoring, email, backup/restore, restart | 5% | `[FIRING:1]`/`[RESOLVED]` delivered to Mailpit; `pg_dump`→`pg_restore` counts matched; restart persistence verified | `../release-readiness.md`, 2026-10-31 | 90% |
 | Production-shaped TLS deployment | 5% | Configured, never deployed against real infrastructure | `docker-compose.production.yml`; verdict excludes it | 30% |
 
-Weighted total: **≈ 88%**.
+Weighted total: **≈ 88%** (against full scope including auth and TLS).
+**≈ 91%** against the local-dev scope (auth deferred, TLS scoped out — both excluded from done).
 
 ### Snapshot of the running environment (2026-11-01)
 
 | Item | Observed |
 | --- | --- |
-| Branch / commit | `main` @ `05d91bc`, plus uncommitted work (see C1) |
+| Branch / commit | `main` @ `895762f`, clean working tree |
 | Compose services up | `db`, `backend`, `frontend`, `postgres-exporter` |
-| Compose services absent | `keycloak`, `mailpit`, `prometheus`, `alertmanager` |
+| Compose services absent | `keycloak`, `mailpit`, `prometheus`, `alertmanager` (auth deferred) |
 | Security profile | `QF_SPRING_PROFILE=default` → `authEnabled:false`, `operator:true`, development banner shown |
 | Database | `rowCount: 1000000` (PostgreSQL 17.11) |
 | k6 | UP (`tools\k6\k6.exe`) |
 | Frontend build | Green — 358.30 kB initial / 97.81 kB transfer (budget warns at 400 kB) |
 | Frontend specs | 9 files, **50 tests passing** (`npm test`, exit 0, no env vars) |
+| Frontend e2e smoke | 5/9 pass against running stack; 4 need a historical run with an explain-plan artifact (test-data gap, logged below) |
 
 ---
 
@@ -112,27 +115,13 @@ change: the outcome and the captured stderr were already on the manifest and as 
 read-only `GET /api/runs/{id}/diagnostics` exposes them and the detail page renders a "Why it failed" block.
 The earlier claim that this needed a new column was incorrect — `ddl-auto=none` still holds.
 
-### C4 — Re-verify the authenticated stack end-to-end (0.5 d) — **OPEN, not run 2026-11-01**
+### C4 — Re-verify the authenticated stack end-to-end — **DEFERRED (auth dropped)**
 
-**Why:** The strongest evidence in the repo (9/9 real-stack, RBAC, CSRF, email) is dated 2026-10-31 and the
-stack that produced it is not running. Current state cannot inherit that result.
+**Why:** The user elected to treat QueryForge as local-dev only — no authentication, no Keycloak, no Mailpit. C4 requires `keycloak`/`mailpit` plus a Playwright Chromium download and real-stack browser acceptance; all auth-dependent work is deferred until auth is re-introduced.
 
-**Actions**
+**Status:** Deferred. The 2026-10-31 evidence (9/9 real-stack) stands as prior evidence only.
 
-1. `QF_SPRING_PROFILE=local-auth docker compose --profile app --profile authenticated --profile monitoring up -d --wait`
-2. `QF_REAL_STACK=1 PLAYWRIGHT_BASE_URL=http://localhost:8080 npx playwright test e2e/real-stack.spec.ts`
-3. Manually confirm: anonymous `/api/runs` → 401; `viewer` sees no Start button and receives 403 on write;
-   operator can create/start/cancel; CSRF rejection message distinct from role rejection; sign-out leaves
-   the app signed out on refresh.
-4. Open Mailpit and confirm the alert pair after a deliberate backend stop.
-
-**Status (2026-11-01):** not attempted. The 2026-10-31 evidence still stands as *prior* evidence only.
-Bringing up `keycloak`/`mailpit` needs the `authenticated` profile plus a Playwright Chromium download, and
-the session ended with a machine crash that took Docker down; restarting the whole stack to chase this was
-deferred rather than half-done. This is the one workstream that still requires human-approved resource use.
-
-**Acceptance:** 9/9 real-stack green against the running stack, plus the four manual checks recorded with
-dated evidence in `docs/qa/artifacts/`.
+**Acceptance (when re-introduced):** 9/9 real-stack green against the running stack, plus the four manual checks recorded with dated evidence in `docs/qa/artifacts/`.
 
 ### C5 — Load real data and take one honest measurement (1–2 h)
 
@@ -148,21 +137,21 @@ dated evidence in `docs/qa/artifacts/`.
 **Acceptance:** `/api/lab/readiness` reports the loaded row count; one A/B pair appears with real deltas and
 a compatibility verdict.
 
-### C6 — Sweep the remaining UI surfaces (0.5 d) — **PARTIAL 2026-11-01**
+### C6 — Sweep the remaining UI surfaces (0.5 d) — **PARTIAL**
 
-Not exercised in the 2026-11-01 session, though partly covered by prior automated suites:
+**Not exercised in the 2026-11-01 session, though partly covered by prior automated suites:**
 
-- Plan explorer: tree/raw toggle, expand/collapse, copy, malformed plan, large plan, deep nesting, missing plan.
-- Artifact download, ZIP archive, run export (Markdown/HTML), comparison export.
-- Live SSE with a genuinely running run: state transitions, log lines, artifact notification, cancel,
-  reconnect after a dropped stream.
-- Keyboard-only traversal, focus visibility after navigation, accessible names on controls.
-- Responsive layout at 320 / 768 / 1440 px.
+- Plan explorer: tree/raw toggle, expand/collapse, copy, malformed plan, large plan, deep nesting, missing plan — **unit-tested** (`plan-explorer.component.spec.ts`, 2 tests); live toggle/expand/collapse/copy need a run with an explain-plan artifact.
+- Artifact download, ZIP archive, run export (Markdown/HTML), comparison export — artifact download **unit-tested** (BUG-QF-008 fix); live download needs a run with artifacts.
+- Live SSE with a genuinely running run: state transitions, log lines, artifact notification, cancel, reconnect after a dropped stream — **unit-tested** (`run-detail.component.spec.ts`, FakeEventSource); live SSE needs a running k6 run.
+- Keyboard-only traversal, focus visibility after navigation, accessible names on controls — **partially covered** (`smoke.spec.ts`: keyboard tree toggle + navigation pass).
+- Responsive layout at 320 / 768 / 1440 px — **not exercised**.
 
-**Outcome (2026-11-01):** the artifact-download row is done — and it found a real defect (BUG-QF-008,
-manifest artifacts invisible to the listing), now fixed and unit-tested. Plan explorer, run export, live SSE
-with a genuinely running run, keyboard traversal and the 320/768/1440 responsive checks were **not**
-exercised; they remain open. Closing them needs the stack running again.
+**Live smoke test results against running stack (9 tests):**
+- Passed: homepage brand/nav, catalog templates, run history, compare page, keyboard navigation (5/9)
+- Failed: run detail with artifacts, artifact download, explain plan → plan explorer, plan tree keyboard toggle (4/9) — all four need run `qf001-baseline-search-1M-r10` with an explain-plan artifact, which does not exist in the DB (all 35 runs have `artifacts: []`). Test-data gap, not an app defect.
+
+**Outcome (2026-11-01):** artifact-download row is done (BUG-QF-008 fixed + unit-tested). Plan explorer, run export, live SSE with a genuinely running run, keyboard traversal (partial), and the 320/768/1440 responsive checks remain open for live verification. They need a historical run with artifacts loaded into the DB.
 
 **Acceptance:** each item exercised live and either passing or logged in `BUG_HUNT.md` with an ID.
 
@@ -171,8 +160,7 @@ exercised; they remain open. Closing them needs the stack running again.
 **Acceptance:** `runmvn.bat -B -ntp clean verify` (or `./mvnw -B -ntp clean verify`) reports 143+ tests,
 0 failures, 0 skipped, with the `postgres:17` Testcontainers test actually running.
 
-**Outcome:** `sh ./mvnw -B -ntp verify` → BUILD SUCCESS, **197 tests, 0 failures, 0 errors, 0 skipped**
-(`logs/qa-mvn-verify.log`), including the real `postgres:17` Testcontainers coverage.
+**Outcome:** `mvn -B -ntp verify` → BUILD SUCCESS, **203 tests, 0 failures, 0 errors, 0 skipped**, including the real `postgres:17` Testcontainers coverage. Re-verified 2026-11-01 after the C1 config commits.
 
 ### C8 — Decide the production-shaped deployment (1–2 d, or scope it out) — **SCOPED OUT 2026-11-01**
 
@@ -191,11 +179,13 @@ to reopen if this ever targets real infrastructure.
 ## 4. Critical path
 
 ```
-C1 (commit) ──> C2 (test runner) ──> C3 (3 defects) ──> C6 (UI sweep)
-                     │
-                     └──> C4 (auth re-verify) ──> C5 (data + measurement)
-                                                     │
-C7 (backend verify, after C1) ───────────────────────┴──> C8 (TLS deploy or scope out)
+C1 (commit) ──> C2 (test runner) ──> C3 (3 defects) ──> C6 (UI sweep, partial)
+                      │
+                      └──> C4 (auth) ── DEFERRED (auth dropped, local-dev only)
+                                                      │
+C5 (data + measurement) ──────────────────────────────┴── done (1M rows verified)
+C7 (backend verify, after C1) ───────────────────────────┴── done (203 tests green)
+C8 (TLS deploy or scope out) ───────────────────────────────┴── scoped out
 ```
 
 Realistic effort: **1.5–2 focused days** to a defensible 100% on the local-deployment definition; about a
@@ -210,32 +200,32 @@ week if the production TLS stack is included.
 git status --porcelain          # expect empty
 
 # 2. Backend suite
-./mvnw -B -ntp clean verify     # expect 0 failures, 0 skipped
+mvn -B -ntp clean verify        # expect 0 failures, 0 skipped
 
 # 3. Frontend suite and build
 cd frontend && npm test         # expect exit 0, no worker crashes
 npm run build                   # expect success, initial bundle < 400 kB
 
-# 4. Authenticated stack, real browser acceptance
-QF_SPRING_PROFILE=local-auth docker compose --profile app --profile authenticated --profile monitoring up -d --wait
-QF_REAL_STACK=1 PLAYWRIGHT_BASE_URL=http://localhost:8080 npx playwright test e2e/real-stack.spec.ts   # expect 9/9
-
-# 5. Data is real, auth is enforced
+# 4. Data is real, auth is disabled (local-dev)
 curl -s localhost:8081/api/lab/readiness   # expect rowCount >= 100000
-curl -s localhost:8081/api/auth/session     # expect authEnabled: true
-curl -s -o /dev/null -w '%{http_code}\n' localhost:8081/api/runs   # expect 401 anonymously
+curl -s localhost:8081/api/auth/session    # expect authEnabled: false (local-dev, no auth)
+curl -s -o /dev/null -w '%{http_code}\n' localhost:8081/api/runs   # expect 200 anonymously
 ```
+
+**Deferred (auth dropped):** C4 authenticated-stack re-verification (Keycloak + Mailpit + real-stack Playwright). C8 production-shaped TLS deployment (scoped out).
+
+**C6 partial:** 4 smoke-test items need a historical run with an explain-plan artifact loaded into the DB (test-data gap, not an app defect).
 
 ---
 
 ## 6. Risks and non-goals
 
-- **Risk:** the dirty security-config diff (C1) may change authorization behaviour in ways the current
-  green suite does not cover. Review it before anything else.
-- **Risk:** the frontend test-runner crash (C2) may be environmental rather than a code defect; if so, pin
-  the working invocation and document it rather than chasing a phantom bug.
 - **Risk:** loading 1M rows changes the numbers the README quotes. Those figures come from earlier benchmark
   datasets; re-measure before publishing new claims.
+- **Risk:** the 4 C6 smoke-test items need a historical run with an explain-plan artifact; none of the 35
+  existing runs has artifacts. Load one into the DB before claiming C6 complete.
+- **Non-goal:** authentication, Keycloak, Mailpit, OIDC, CSRF enforcement — deferred; local-dev runs with
+  `authEnabled:false`.
 - **Non-goal:** redesign, new features, dependency upgrades, or architectural change. This plan is
   stabilization and proof only.
 - **Non-goal:** re-opening defects already verified fixed (QF-DEF-01..13) without new evidence.
@@ -250,3 +240,4 @@ curl -s -o /dev/null -w '%{http_code}\n' localhost:8081/api/runs   # expect 401 
 | 2026-11-01 | C1, C2 and most of C3 landed: 9 commits, 6 of 7 findings fixed and verified, frontend suite reproducible at 49/49. Overall ≈ 83%. |
 | 2026-11-01 | C3 and C5 complete: BUG-QF-005 closed via a diagnostics endpoint (no schema change), 1,000,000 rows served by the API, BUG-QF-008 found and fixed, 50 frontend / 18 targeted backend tests green. C6 partial, C4 open, C8 scoped out. Overall ≈ 88%. |
 | 2026-11-01 | C7 closed: backend suite green at 197 tests. Working tree clean; remaining work is C4 (authenticated stack), C5 (data), C6 (UI sweep) and the deferred QF-005. |
+| 2026-11-01 | Auth dropped — local-dev only. C1 committed (3 reviewable commits: docker Keycloak wiring, local-auth configtree, .gitignore logs/). C4 deferred. C5 verified: rowCount 1,000,000 via /api/lab/readiness on running stack. C6 partial: 5/9 smoke tests pass; 4 need a run with an explain-plan artifact (test-data gap). Frontend build green (358.30 kB initial). Working tree clean. |
