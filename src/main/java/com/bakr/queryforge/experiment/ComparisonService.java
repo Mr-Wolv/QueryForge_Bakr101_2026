@@ -47,15 +47,22 @@ public class ComparisonService {
 
     private final ExperimentRunService runs;
     private final Path comparisonsDir;
+    private final ComparisonReportRenderer reportRenderer;
 
     @Autowired
-    public ComparisonService(ExperimentRunService runs) {
-        this(runs, COMPARISONS_DIR);
+    public ComparisonService(ExperimentRunService runs, ComparisonReportRenderer reportRenderer) {
+        this(runs, COMPARISONS_DIR, reportRenderer);
     }
 
     public ComparisonService(ExperimentRunService runs, Path comparisonsDir) {
+        this(runs, comparisonsDir, new ComparisonReportRenderer());
+    }
+
+    public ComparisonService(ExperimentRunService runs, Path comparisonsDir,
+                             ComparisonReportRenderer reportRenderer) {
         this.runs = runs;
         this.comparisonsDir = comparisonsDir;
+        this.reportRenderer = reportRenderer;
     }
 
     public ComparisonReport compare(String leftId, String rightId, String createdBy) throws IOException {
@@ -160,8 +167,8 @@ public class ComparisonService {
                 leftId, rightId, compatible, List.copyOf(blockers), List.copyOf(warnings), diff);
         Map<String, MetricDelta> deltas = metricsDelta(left.metrics(), right.metrics());
 
-        String markdown = ComparisonReportRenderer.buildMarkdown(left, right, verdict, deltas);
-        String html = ComparisonReportRenderer.buildHtml(left, right, verdict, deltas);
+        String markdown = reportRenderer.buildMarkdown(left, right, verdict, deltas);
+        String html = reportRenderer.buildHtml(left, right, verdict, deltas);
         String reportId = "cmp-" + leftId + "-" + rightId + "-" + System.currentTimeMillis();
 
         List<RunArtifact> artifacts = new ArrayList<>();
@@ -288,7 +295,7 @@ public class ComparisonService {
 
     public String buildHtml(ExperimentRun left, ExperimentRun right,
                             CompatibilityVerdict verdict, Map<String, MetricDelta> deltas) {
-        return ComparisonReportRenderer.buildHtml(left, right, verdict, deltas);
+        return reportRenderer.buildHtml(left, right, verdict, deltas);
     }
 
     private static String text(Object value) {

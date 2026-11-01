@@ -5,10 +5,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class PlanTokenizer {
-    private static final Pattern NODE_TYPE_PATTERN = Pattern.compile(
-            "^\\s*(?:->\\s*)?([A-Za-z][A-Za-z0-9\\s]*?(?:\\s+on\\s+\\w+)?)(?:\\s*:\\s*|\\s*\\()"
-    );
-
     public TokenizedLine tokenizeLine(String line, int indent) {
         String trimmed = line.stripLeading();
         String headline = trimmed;

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${title}">Comparison report</title>
+</head>
+<body>
+<main>
+    <h1 th:text="|Comparison: ${leftId} vs ${rightId}|">Comparison</h1>
+    <table>
+        <thead><tr><th>Field</th><th>Baseline</th><th>Candidate</th></tr></thead>
+        <tbody>
+        <tr><th>Run ID</th><td th:text="${leftId}"></td><td th:text="${rightId}"></td></tr>
+        <tr><th>Template</th><td th:text="${leftTemplate}"></td><td th:text="${rightTemplate}"></td></tr>
+        <tr><th>State</th><td th:text="${leftState}"></td><td th:text="${rightState}"></td></tr>
+        <tr><th>Duration</th><td th:text="|${leftDuration}ms|"></td><td th:text="|${rightDuration}ms|"></td></tr>
+        </tbody>
+    </table>
+
+    <h2>Verdict</h2>
+    <p th:if="${compatible}"><strong>COMPATIBLE</strong> — runs can be compared.</p>
+    <p th:unless="${compatible}">
+        <strong>INCOMPATIBLE</strong> — deltas are shown for diagnosis, not as a controlled result.
+    </p>
+    <section th:if="${!compatible and !#lists.isEmpty(blockers)}">
+        <h3>Blockers</h3>
+        <ul><li th:each="blocker : ${blockers}" th:text="${blocker}"></li></ul>
+    </section>
+    <section th:if="${!#lists.isEmpty(warnings)}">
+        <h3>Warnings</h3>
+        <ul><li th:each="warning : ${warnings}" th:text="${warning}"></li></ul>
+    </section>
+    <section th:if="${!#lists.isEmpty(differences)}">
+        <h2>Differences</h2>
+        <ul>
+            <li th:each="difference : ${differences}">
+                <strong th:text="${difference.key}"></strong>:
+                <span th:text="${difference.value}"></span>
+            </li>
+        </ul>
+    </section>
+    <section th:if="${!#lists.isEmpty(deltas)}">
+        <h2>Metric Deltas</h2>
+        <table>
+            <thead>
+            <tr><th>Metric</th><th>Baseline</th><th>Candidate</th><th>Delta</th><th>Delta %</th></tr>
+            </thead>
+            <tbody>
+            <tr th:each="delta : ${deltas}">
+                <th scope="row" th:text="${delta.metric}"></th>
+                <td th:text="${delta.left}"></td>
+                <td th:text="${delta.right}"></td>
+                <td th:text="${delta.delta}"></td>
+                <td th:text="${delta.percent}"></td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+    <h2>Reproduction</h2>
+    <p>Both runs are reproducible from their stored manifests and artifacts.</p>
+</main>
+</body>
+</html>

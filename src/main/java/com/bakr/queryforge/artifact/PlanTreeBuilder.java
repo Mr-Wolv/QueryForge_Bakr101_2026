@@ -4,7 +4,7 @@ import java.util.*;
 
 public class PlanTreeBuilder {
     public PlanParser.PlanNode buildTree(List<PlanParser.PlanNode> allNodes, List<Integer> indents,
-                                        Map<String, String> executionTimeProps) {
+                                        Map<String, String> executionTimeProps, String raw) {
         int n = allNodes.size();
         List<List<Integer>> children = new ArrayList<>();
         for (int i = 0; i < n; i++) {
@@ -32,15 +32,13 @@ public class PlanTreeBuilder {
             roots.add(buildSubtree(allNodes, children, idx, executionTimeProps));
         }
 
-        String raw = "";
-        // For compatibility with original behavior - raw will be reconstructed by caller if needed
         if (roots.size() == 1) {
             return roots.get(0);
         }
         if (roots.isEmpty() && !executionTimeProps.isEmpty()) {
-            return new PlanParser.PlanNode("root", executionTimeProps, List.of(), "");
+            return new PlanParser.PlanNode("root", executionTimeProps, List.of(), raw.strip());
         }
-        return new PlanParser.PlanNode("root", Map.of(), roots, "");
+        return new PlanParser.PlanNode("root", Map.of(), roots, raw.strip());
     }
 
     private PlanParser.PlanNode buildSubtree(List<PlanParser.PlanNode> allNodes, List<List<Integer>> children, int idx,

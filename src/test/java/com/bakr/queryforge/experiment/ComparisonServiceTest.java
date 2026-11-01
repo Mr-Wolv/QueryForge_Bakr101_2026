@@ -129,11 +129,19 @@ class ComparisonServiceTest {
         String rightId = seedRun("QF-001", Map.of(), fingerprint(17, 1_000_000, "baseline", "abc"), metrics(90));
 
         ComparisonReport report = comparisonService.compare(leftId, rightId, "tester");
-        assertThat(report.content()).contains("# Comparison Report");
+        assertThat(report.content())
+                .contains("# Comparison Report", leftId, rightId, "## Verdict", "## Metric Deltas")
+                .doesNotContain("[# th:", "[/]");
         assertThat(report.artifacts()).hasSize(2);
         assertThat(report.artifacts()).anyMatch(a -> a.kind().equals("comparison-markdown"));
         assertThat(report.artifacts()).anyMatch(a -> a.kind().equals("comparison-html"));
         assertThat(report.artifacts()).allMatch(a -> Files.isRegularFile(Path.of(a.location())));
+        String htmlPath = report.artifacts().stream()
+                .filter(a -> a.kind().equals("comparison-html"))
+                .findFirst().orElseThrow().location();
+        assertThat(Files.readString(Path.of(htmlPath)))
+                .contains("<!doctype html>")
+                .contains("Metric Deltas");
     }
 
     @Test

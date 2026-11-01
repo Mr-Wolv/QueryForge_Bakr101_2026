@@ -156,6 +156,6 @@ class ComparisonControllerTest {
 
         ResponseEntity<String> response = c.export(report.id(), "html");
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).contains("<!DOCTYPE html>");
+        assertThat(response.getBody()).contains("<!doctype html>");
     }
 }

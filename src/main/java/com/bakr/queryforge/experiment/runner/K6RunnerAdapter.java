@@ -2,35 +2,50 @@ package com.bakr.queryforge.experiment.runner;
 
 import com.bakr.queryforge.config.InternalRunnerToken;
 import com.bakr.queryforge.experiment.ExperimentTemplate;
+import com.bakr.queryforge.measurement.Metrics;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.security.MessageDigest;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Runs k6 via the local binary or PATH-resolved k6.
- *
- * <p>Invocation shape is fixed in code. Client parameters become validated
- * environment variables only; no shell fragments are passed. Scripts and the
- * k6 binary are resolved to absolute paths because the process working
- * directory is the run directory, not the repository root.
+ * Registered k6 runner facade; command creation, process lifecycle, and summary parsing
+ * are isolated in dedicated collaborators.
  */
 @Component
 public class K6RunnerAdapter implements RunnerAdapter {
 
-    private static final Path REPO_ROOT = Path.of("").toAbsolutePath().normalize();
-    private static final String K6_BIN = System.getenv("K6_BIN");
-    private static final String K6_PATH = System.getenv("K6_PATH");
     public static final String SUMMARY_FILE = "k6-summary.json";
 
     private final InternalRunnerToken runnerToken;
+    private final String baseUrl;
+    private final K6CommandGenerator commandGenerator;
+    private final K6ProcessRunner processRunner;
+    private final K6SummaryParser summaryParser;
+
+    @Autowired
+    public K6RunnerAdapter(InternalRunnerToken runnerToken,
+                           @Value("${queryforge.runner.base-url:http://127.0.0.1:8080}") String baseUrl,
+                           K6CommandGenerator commandGenerator,
+                           K6ProcessRunner processRunner,
+                           K6SummaryParser summaryParser) {
+        this.runnerToken = runnerToken;
+        this.baseUrl = baseUrl;
+        this.commandGenerator = commandGenerator;
+        this.processRunner = processRunner;
+        this.summaryParser = summaryParser;
+    }
 
     public K6RunnerAdapter(InternalRunnerToken runnerToken) {
-        this.runnerToken = runnerToken;
+        this(runnerToken, "http://127.0.0.1:8080",
+                new K6CommandGenerator(), new K6ProcessRunner(), new K6SummaryParser());
     }
 
     @Override
@@ -44,157 +59,55 @@ public class K6RunnerAdapter implements RunnerAdapter {
     }
 
     @Override
+    public String version() {
+        try {
+            return processRunner.version(commandGenerator.resolveK6Binary());
+        } catch (IOException e) {
+            return "unavailable";
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return "interrupted";
+        }
+    }
+
+    @Override
+    public String sourceFingerprint(String templateId) {
+        Path script = commandGenerator.resolveScript(templateId);
+        if (script == null || !Files.isRegularFile(script)) return "unavailable";
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(script));
+            return java.util.HexFormat.of().formatHex(digest);
+        } catch (Exception e) {
+            return "unavailable";
+        }
+    }
+
+    @Override
     public Process execute(ExperimentTemplate template, Map<String, String> parameters, Path workDir)
             throws IOException {
-        String k6Bin = resolveK6Binary();
-        Path script = resolveScript(template.id());
-        if (script == null || !Files.isRegularFile(script)) {
-            throw new IOException("no k6 script registered for template " + template.id());
-        }
-        Files.createDirectories(workDir);
-
-        List<String> cmd = new ArrayList<>();
-        cmd.add(k6Bin);
-        cmd.add("run");
-        cmd.add("--out");
-        cmd.add("json=" + workDir.resolve("raw-k6.json").toAbsolutePath());
-        // Deterministic summary location owned by the run directory.
-        cmd.add("-e");
-        cmd.add("SUMMARY_PATH=" + workDir.resolve(SUMMARY_FILE).toAbsolutePath());
-        // k6 runs in the same container as the API. Under the authenticated
-        // profiles it needs the process-local runner credential, or every
-        // product request would be rejected with 401.
-        cmd.add("-e");
-        cmd.add("BASE_URL=http://127.0.0.1:8080");
-        cmd.add("-e");
-        cmd.add("QF_INTERNAL_TOKEN=" + runnerToken.value());
-        for (Map.Entry<String, String> e : k6Environment(template, parameters).entrySet()) {
-            cmd.add("-e");
-            cmd.add(e.getKey() + "=" + e.getValue());
-        }
-        cmd.add(script.toString());
-
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        pb.directory(workDir.toFile());
-        Process process = pb.start();
-
-        // Bounded capture of stdout/stderr to avoid unbounded memory growth (NFR-003).
-        final long cap = 1_048_576L; // 1 MiB per stream
-        Thread stdoutDrainer = new Thread(
-                () -> drain(process.getInputStream(), workDir.resolve("stdout.log"), cap), "k6-stdout-drain");
-        Thread stderrDrainer = new Thread(
-                () -> drain(process.getErrorStream(), workDir.resolve("stderr.log"), cap), "k6-stderr-drain");
-        stdoutDrainer.setDaemon(true);
-        stderrDrainer.setDaemon(true);
-        stdoutDrainer.start();
-        stderrDrainer.start();
-        return process;
+        List<String> command = commandGenerator.generate(template, parameters, workDir, baseUrl, runnerToken);
+        return processRunner.start(command, workDir);
     }
 
     @Override
     public Path locateSummary(Path workDir, Map<String, String> parameters) {
-        Path direct = workDir.resolve(SUMMARY_FILE);
-        if (Files.isRegularFile(direct)) return direct;
-
-        String out = parameters.getOrDefault("OUT", "k6-run");
-        Path nested = workDir.resolve("benchmark").resolve("results").resolve(out + ".json");
-        if (Files.isRegularFile(nested)) return nested;
-        Path legacy = workDir.resolve(out + ".json");
-        if (Files.isRegularFile(legacy)) return legacy;
-        return null;
+        return summaryParser.locateSummary(workDir, parameters);
     }
 
-    /**
-     * Translate validated API parameters into k6 environment values.
-     *
-     * <p>The API contract expresses durations in whole seconds (the template
-     * declares {@code type=duration, unit=seconds}). k6 reads a bare number as
-     * milliseconds, so {@code DUR=10} silently became 10ms and k6 rejected the
-     * scenario ("duration must be at least 1s"). Append the unit for bare
-     * numbers while leaving explicit k6 durations ({@code 60s}, {@code 2m})
-     * untouched.
-     */
-    static Map<String, String> k6Environment(ExperimentTemplate template,
-                                             Map<String, String> parameters) {
-        Map<String, String> fields = new java.util.HashMap<>();
-        if (template != null && template.parameters() != null) {
-            for (ExperimentTemplate.ParameterField field : template.parameters()) {
-                fields.put(field.name(), field.type());
-            }
-        }
-        Map<String, String> env = new java.util.LinkedHashMap<>();
-        for (Map.Entry<String, String> entry : parameters.entrySet()) {
-            String value = entry.getValue();
-            if ("duration".equals(fields.get(entry.getKey()))
-                    && value != null
-                    && value.matches("\\d+")) {
-                value = value + "s";
-            }
-            env.put(entry.getKey(), value);
-        }
-        return env;
-    }
-
-    private String resolveK6Binary() throws IOException {
-        if (K6_BIN != null && !K6_BIN.isBlank()) return absoluteIfPossible(K6_BIN);
-        if (K6_PATH != null && !K6_PATH.isBlank()) return absoluteIfPossible(K6_PATH);
-        String executable = isWindows() ? "k6.exe" : "k6";
-        Path bundled = REPO_ROOT.resolve("tools").resolve("k6").resolve(executable);
-        if (Files.isRegularFile(bundled)) return bundled.toString();
-        // Fall back to PATH-resolved k6
-        return "k6";
-    }
-
-    private static String absoluteIfPossible(String value) {
-        Path path = Path.of(value);
-        return path.isAbsolute() ? path.toString() : REPO_ROOT.resolve(path).normalize().toString();
-    }
-
-    private static boolean isWindows() {
-        return System.getProperty("os.name").toLowerCase().contains("win");
-    }
-
-    static void drain(java.io.InputStream in, Path out, long cap) {
-        byte[] buf = new byte[8192];
-        long written = 0;
-        boolean truncated = false;
-        try (java.io.OutputStream os = Files.newOutputStream(out,
-                java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.TRUNCATE_EXISTING)) {
-            int n;
-            // Keep consuming the stream even past the cap. Stopping early leaves the
-            // child blocked on a full pipe, which can hang the run until its timeout.
-            while ((n = in.read(buf)) != -1) {
-                if (written < cap) {
-                    int toWrite = (int) Math.min(n, cap - written);
-                    os.write(buf, 0, toWrite);
-                    written += toWrite;
-                } else {
-                    truncated = true;
-                }
-            }
-            if (truncated) {
-                os.write("\n[output truncated at 1 MiB]\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            }
-        } catch (IOException ignored) {
-            // process output is best-effort evidence
-        } finally {
-            try {
-                in.close();
-            } catch (IOException ignored) {
-            }
-        }
+    @Override
+    public Metrics parseSummary(Path summary) throws IOException {
+        return summaryParser.parse(summary);
     }
 
     Path resolveScript(String templateId) {
-        if (templateId == null) return null;
-        String file = switch (templateId) {
-            case "QF-001" -> "search.js";
-            case "QF-002" -> "pagination.js";
-            case "QF-003" -> "concurrency.js";
-            case "QF-000" -> "point.js";
-            case "QF-004" -> "index-ordering.js";
-            default -> null;
-        };
-        return file == null ? null : REPO_ROOT.resolve("benchmark").resolve("k6").resolve(file).normalize();
+        return commandGenerator.resolveScript(templateId);
+    }
+
+    static Map<String, String> k6Environment(ExperimentTemplate template, Map<String, String> parameters) {
+        return K6CommandGenerator.k6Environment(template, parameters);
+    }
+
+    static void drain(InputStream input, Path output, long cap) {
+        K6ProcessRunner.drain(input, output, cap);
     }
 }
