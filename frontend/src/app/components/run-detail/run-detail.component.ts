@@ -59,9 +59,9 @@ const LEVEL_RE = /^(DEBUG|INFO|WARN|WARNING|ERROR|FATAL|TRACE)\b/i;
         </span>
       </div>
 
-      <div class="live" *ngIf="liveState || liveLogs.length > 0">
+      <div class="live" *ngIf="isActive || liveLogs.length > 0">
         <div class="live-head">
-          <span class="sse-badge" [class.running]="displayState === 'RUNNING'" [class.succeeded]="displayState === 'SUCCEEDED'" [class.failed]="displayState === 'FAILED'">
+          <span class="sse-badge" *ngIf="isActive" [class.running]="displayState === 'RUNNING'" [class.succeeded]="displayState === 'SUCCEEDED'" [class.failed]="displayState === 'FAILED'">
             Live: {{ displayState }}
           </span>
           <input class="log-search" type="search" aria-label="Search run logs" placeholder="Search logs…" [(ngModel)]="logSearch" />

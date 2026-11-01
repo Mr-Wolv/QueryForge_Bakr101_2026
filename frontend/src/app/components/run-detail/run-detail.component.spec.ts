@@ -158,4 +158,10 @@ describe('RunDetailComponent', () => {
     component.auth.canOperate = () => false;
     expect(component.isActive).toBe(true);
   });
+
+  it('does not advertise a live stream for a finished run', () => {
+    const { fixture } = setup('FAILED');
+
+    expect(fixture.nativeElement.textContent).not.toContain('Live:');
+  });
 });
