@@ -57,17 +57,17 @@
           "configurations": {
             "production": {
               "budgets": [
-                  {
-                    "type": "initial",
-                    "maximumWarning": "400kB",
-                    "maximumError": "500kB"
-                  },
-                  {
-                    "type": "anyComponentStyle",
-                    "maximumWarning": "8kB",
-                    "maximumError": "16kB"
-                  }
-                ],
+                {
+                  "type": "initial",
+                  "maximumWarning": "400kB",
+                  "maximumError": "500kB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "8kB",
+                  "maximumError": "16kB"
+                }
+              ],
               "outputHashing": "all"
             },
             "development": {
@@ -98,7 +98,8 @@
           "options": {
             "tsConfig": "tsconfig.spec.json",
             "buildTarget": "frontend:build:development",
-            "runner": "vitest"
+            "runner": "vitest",
+            "runnerConfig": "vitest.config.ts"
           }
         }
       }
