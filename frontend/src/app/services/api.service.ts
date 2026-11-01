@@ -65,6 +65,13 @@ export interface Hint {
   body: string;
 }
 
+export interface RunDiagnostics {
+  runId: string;
+  state: string;
+  outcome: string;
+  stderrTail: string;
+}
+
 export interface MetricDeltaValue {
   left: number;
   right: number;
@@ -203,6 +210,10 @@ export class ApiService {
 
   getHints(id: string): Observable<Hint[]> {
     return this.apiClient.getHints<Hint>(id);
+  }
+
+  getRunDiagnostics(id: string): Observable<RunDiagnostics> {
+    return this.apiClient.getRunDiagnostics<RunDiagnostics>(id);
   }
 
   exportRun(id: string, format: 'markdown' | 'html' = 'markdown'): Observable<Blob> {

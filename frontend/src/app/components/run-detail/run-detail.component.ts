@@ -2,7 +2,7 @@ import { Component, inject, ChangeDetectorRef, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink, Router } from '@angular/router';
-import { ApiService, ExperimentRun, Hint, RunArtifact } from '../../services/api.service';
+import { ApiService, ExperimentRun, Hint, RunArtifact, RunDiagnostics } from '../../services/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { LatencyChartComponent } from '../latency-chart/latency-chart.component';
 import { StateCardComponent } from '../state-card/state-card.component';
@@ -43,6 +43,14 @@ const LEVEL_RE = /^(DEBUG|INFO|WARN|WARNING|ERROR|FATAL|TRACE)\b/i;
       </div>
 
       <div class="error-banner" *ngIf="actionError" role="alert">{{actionError}}</div>
+
+      <div class="run-diagnostic" *ngIf="diagnostics as d" role="status">
+        <p class="run-diagnostic-head">
+          <strong>Why it failed:</strong>
+          {{ d.outcome || 'the runner exited without reporting a reason' }}
+        </p>
+        <pre class="run-diagnostic-tail" *ngIf="d.stderrTail">{{ d.stderrTail }}</pre>
+      </div>
 
       <div class="run-controls">
         <button *ngIf="run.state === 'QUEUED' && auth.canOperate()" class="launch" (click)="start()" [disabled]="starting">
@@ -159,6 +167,7 @@ export class RunDetailComponent implements OnDestroy {
   artifactFilter = '';
   filteredArtifacts: ExperimentRun['artifacts'] = [];
   liveState: string | null = null;
+  diagnostics: RunDiagnostics | null = null;
   liveLogs: LogEntry[] = [];
   logSearch = '';
   private sse?: EventSource;
@@ -188,6 +197,7 @@ export class RunDetailComponent implements OnDestroy {
       next: run => {
         this.run = run;
         this.applyArtifactFilter();
+        this.loadDiagnosticsIfFailed(run);
         this.cdr.markForCheck();
       },
       error: () => {
@@ -291,6 +301,7 @@ export class RunDetailComponent implements OnDestroy {
       next: run => {
         this.run = run;
         this.applyArtifactFilter();
+        this.loadDiagnosticsIfFailed(run);
         this.cdr.markForCheck();
       },
       error: () => {}
@@ -302,6 +313,28 @@ export class RunDetailComponent implements OnDestroy {
       this.sse.close();
       this.sse = undefined;
     }
+  }
+
+  /**
+   * A failed run used to render as a bare state badge: the orchestrator recorded the
+   * outcome on the manifest and captured stderr, but neither reached the UI. Fetch the
+   * explanation for terminal failures only, so a healthy run costs no extra request.
+   */
+  private loadDiagnosticsIfFailed(run: ExperimentRun): void {
+    if (run.state !== 'FAILED' && run.state !== 'TIMED_OUT') {
+      this.diagnostics = null;
+      return;
+    }
+    this.api.getRunDiagnostics(run.id).subscribe({
+      next: diagnostics => {
+        this.diagnostics = diagnostics;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.diagnostics = null;
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   clearLogs() {

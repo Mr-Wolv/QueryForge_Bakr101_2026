@@ -190,4 +190,53 @@ class ExperimentRunControllerUnitTest {
                 Map.of(), Map.of(), com.bakr.queryforge.measurement.Metrics.empty(),
                 List.of(), "unknown");
     }
+
+    @Test
+    void diagnosticsExposeTheManifestOutcomeAndStderrTail(@TempDir java.nio.file.Path temp) throws IOException {
+        java.nio.file.Path stderr = temp.resolve("stderr.log");
+        java.nio.file.Files.writeString(stderr,
+                "time=\"0s\" level=error msg=\"duration must be at least 1s, but is 10ms\"\n");
+        var manifest = new com.bakr.queryforge.artifact.RunManifest(
+                "run-1", "QF-001", "1.0", "FAILED",
+                Instant.now(), Instant.now(), 539,
+                "failed with exit code 99",
+                Map.of(), Map.of(), Map.of(), "V1", "none", Map.of(),
+                "unknown", Map.of(), List.of(), null);
+
+        Mockito.when(runs.findById("run-1")).thenReturn(Optional.of(run("run-1", "FAILED")));
+        Mockito.when(runs.manifest("run-1")).thenReturn(Optional.of(manifest));
+        Mockito.when(artifactService.resolveForRun("run-1", "runner-stderr"))
+                .thenReturn(Optional.of(stderr));
+        Mockito.when(artifactService.readText(stderr))
+                .thenAnswer(inv -> Optional.of(java.nio.file.Files.readString(stderr)));
+
+        ResponseEntity<RunDiagnostics> resp = controller.diagnostics("run-1");
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resp.getBody().outcome()).isEqualTo("failed with exit code 99");
+        assertThat(resp.getBody().state()).isEqualTo("FAILED");
+        assertThat(resp.getBody().stderrTail()).contains("duration must be at least 1s");
+    }
+
+    @Test
+    void diagnosticsDegradeWhenNothingWasCaptured() {
+        Mockito.when(runs.findById("run-1")).thenReturn(Optional.of(run("run-1", "FAILED")));
+        Mockito.when(runs.manifest("run-1")).thenReturn(Optional.empty());
+        Mockito.when(artifactService.resolveForRun("run-1", "runner-stderr"))
+                .thenReturn(Optional.empty());
+
+        ResponseEntity<RunDiagnostics> resp = controller.diagnostics("run-1");
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resp.getBody().outcome()).isEmpty();
+        assertThat(resp.getBody().stderrTail()).isEmpty();
+    }
+
+    @Test
+    void diagnosticsRejectUnknownRun() {
+        Mockito.when(runs.findById("missing")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> controller.diagnostics("missing"))
+                .isInstanceOf(com.bakr.queryforge.service.NotFoundException.class);
+    }
 }

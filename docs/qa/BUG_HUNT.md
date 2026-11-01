@@ -14,7 +14,7 @@ Environment under test at session start:
 | Branch / commit | `main` @ `05d91bc` + 5 modified / 2 new files from a prior session (preserved, untouched) |
 | Backend | compose `backend` on `127.0.0.1:8081`; a separate host API on `127.0.0.1:8080` is what the UI proxies to |
 | Frontend | Angular dev server `:4200`; nginx container on `:8082` |
-| Database | PostgreSQL (compose, host port 56672) — `rowCount: 0` |
+| Database | PostgreSQL 17.11 (compose, host port 56672) — `rowCount: 0` at session start, **1,000,000** after the C5 load |
 | k6 | UP via `tools\k6\k6.exe` |
 | Security profile | `QF_SPRING_PROFILE=default` — **authentication disabled**, `operator: true` |
 
@@ -28,9 +28,9 @@ Environment under test at session start:
 | High | 1 |
 | Medium | 4 |
 | Low | 2 |
-| Fixed and verified in the live UI | 4 |
+| Fixed and verified in the live UI | 7 |
 | Fixed, awaiting live verification | 0 |
-| Deferred | 1 |
+| Deferred | 0 |
 | Open, not yet fixed | 0 |
 | Not reproducible | 0 |
 | Environment / deployment gaps (not app defects) | 1 |
@@ -43,7 +43,7 @@ Environment under test at session start:
 | BUG-QF-002 | Low | Overview | Missing p95 rendered as a bare unit: "p95: ms" | Rendered text `p95: ms` for a CANCELLED run with empty percentiles | **Fixed + verified** |
 | BUG-QF-003 | Medium | Overview | "Baseline · QF-001" card could never populate for auto-named runs | "No QF-001 baseline is recorded yet." shown while many QF-001 runs existed | **Fixed + verified** |
 | BUG-QF-004 | Medium | Compare | Same run selectable on both sides; failure surfaced as a bare "Comparison failed." | Backend answers `400 {"detail":"run ids must differ"}`; the UI discarded the detail | **Fixed + verified** |
-| BUG-QF-005 | Medium | Run detail | FAILED run shows no failure reason and an empty log pane | `qf-000-run-26770c43…` renders FAILED with zeros and no diagnostic; run document has no error field | Deferred (needs backend field) |
+| BUG-QF-005 | Medium | Run detail | FAILED run shows no failure reason and an empty log pane | `qf-000-run-26770c43…` now renders "Why it failed: failed with exit code 107" plus the captured k6 stderr tail | **Fixed + verified** |
 | BUG-QF-006 | Low | Run detail | "LIVE: SUCCEEDED" / "LIVE: FAILED" badge shown for finished runs | Badge rendered on both a completed and a failed run | **Fixed + verified** |
 | BUG-QF-007 | Medium | Catalog / execution | Experiments can be launched against an empty products table with no warning | Readiness reports `0 rows`; catalog offers Start with no guard | **Fixed + verified** |
 
@@ -129,17 +129,34 @@ API" and "surfaces the backend detail instead of a generic failure message".
 **Verification:** Live — both selects held the same run id and the page rendered the refusal
 (`docs/qa/artifacts/qf-004-compare-self-guard.png`).
 
-### BUG-QF-005 — Failed runs carry no diagnostic (deferred)
+### BUG-QF-005 — Failed runs carry no diagnostic
 
-**Severity:** Medium · **Page:** `/runs/:id` · **Status:** Deferred
+**Severity:** Medium · **Page:** `/runs/:id` · **Status:** Fixed + verified
 
 **Reproduction:** Open `qf-000-run-26770c43-1793540422014` (state FAILED).
 **Expected:** A failure reason or captured stderr tail.
-**Actual:** State badge, zeroed throughput, "No hints", "No artifacts available.", empty log pane.
-**Root cause:** `GET /api/runs/{id}` has no error/message field and streamed logs are not persisted, so the UI
-has nothing to render. This is a backend data-model gap, not a template omission.
-**Blocker:** Requires persisting a failure message/log tail on the run document — a backend change beyond a
-defect fix. Recorded rather than hidden.
+**Actual (before):** State badge, zeroed throughput, "No hints", "No artifacts available.", empty log pane.
+
+**Root cause:** the data already existed but was unreachable. `ExperimentOrchestrator` records an `outcome`
+string on the run manifest and copies the runner stderr to a `stderr` artifact (kind `runner-stderr`), yet no
+endpoint exposed either, so the detail page had nothing to render. The earlier note that this required a new
+column was wrong: the manifest is the record of truth and `ddl-auto=none` stays untouched.
+
+**Fix:** new read-only `GET /api/runs/{id}/diagnostics` returning `RunDiagnostics(runId, state, outcome,
+stderrTail)`, with the tail capped at 4000 characters and empty when no artifact exists. The artifact is
+matched by id `stderr` **or** `runner-stderr`, because manifests name it `stderr` while the kind is
+`runner-stderr` — matching only the kind silently produced an empty tail on real runs. The run detail component
+fetches diagnostics only for non-successful terminal states and renders a "Why it failed" block with the
+outcome and the tail in a scrollable `<pre>`.
+
+**Regression tests:** `ExperimentRunControllerUnitTest` — "reports outcome and stderr tail for a failed run",
+"degrades to an empty tail when no stderr artifact exists", "answers 404 for an unknown run";
+`run-detail.component.spec.ts` — "explains why a failed run failed instead of showing a bare state".
+
+**Verification:** live `GET /api/runs/qf-000-run-26770c43-1793540422014/diagnostics` → `200`, `state: FAILED`,
+`outcome: "failed with exit code 107"`, `stderrTail` 335 chars; the page renders both
+(`docs/qa/artifacts/qf-005-failed-run-diagnostics-full.png`). The tail independently confirms that run's
+original cause (`SyntaxError: … does not provide an export named "seededRandom"`), which commit `289204c` fixed.
 
 ### BUG-QF-006 — "LIVE" badge on terminal runs
 
@@ -174,8 +191,9 @@ is empty" and "allows launching once the dataset is populated".
 | --- | --- |
 | `frontend` Overview spec | 3/3 pass (isolated run) |
 | `frontend` Compare spec | 2/2 pass (isolated run) |
-| `frontend` full suite | **Fixed.** The abort was a native OOM (`FATAL ERROR: Zone Allocation failed`). With a bounded Vitest fork pool (`frontend/vitest.config.ts`, 2 forks, 4 GB heap) `npm test` reports **49 tests across 9 files, exit 0**, with no environment variables. |
+| `frontend` full suite | **Fixed.** The abort was a native OOM (`FATAL ERROR: Zone Allocation failed`). With a bounded Vitest fork pool (`frontend/vitest.config.ts`, 2 forks, 4 GB heap) `npm test` reports **50 tests across 9 files, exit 0**, with no environment variables. |
 | Backend test suite | **197 tests, 0 failures, 0 errors, 0 skipped** — `sh ./mvnw -B -ntp verify` → BUILD SUCCESS, 2026-11-01 (`logs/qa-mvn-verify.log`) |
+| `ExperimentRunControllerUnitTest` (after QF-005) | **15/15 pass**, including the three diagnostics cases |
 | Live UI | Exercised at `/`, `/experiments`, `/runs`, `/runs/:id` (succeeded + failed), `/compare` |
 | Logged out / authenticated flows | **Not exercised** — the running profile disables authentication |
 

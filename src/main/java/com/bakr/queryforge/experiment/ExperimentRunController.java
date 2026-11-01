@@ -178,4 +178,37 @@ public class ExperimentRunController {
             throw new com.bakr.queryforge.service.NotFoundException("could not create artifact archive: " + e.getMessage());
         }
     }
+
+    /**
+     * Human-readable reason a run did not succeed.
+     *
+     * <p>The orchestrator already records an outcome on the manifest and captures bounded stderr
+     * as a runner-stderr artifact; neither was reachable from the API, so a FAILED run rendered
+     * with no explanation at all.
+     */
+    @GetMapping("/{id}/diagnostics")
+    public ResponseEntity<RunDiagnostics> diagnostics(@PathVariable String id) {
+        ExperimentRun run = runs.findById(id)
+                .orElseThrow(() -> new com.bakr.queryforge.service.NotFoundException("run not found: " + id));
+        String outcome = runs.manifest(id)
+                .map(com.bakr.queryforge.artifact.RunManifest::outcome)
+                .orElse("");
+                String stderr = "";
+        // Manifests name this artifact "stderr" (kind runner-stderr); older runs and
+        // fixtures may use the kind as the id, so accept both spellings.
+        for (String artifactId : List.of("runner-stderr", "stderr")) {
+            Optional<String> text = artifactService.resolveForRun(id, artifactId)
+                    .flatMap(artifactService::readText);
+            if (text.isPresent() && !text.get().isBlank()) {
+                stderr = tail(text.get(), 4000);
+                break;
+            }
+        }
+        return ResponseEntity.ok(new RunDiagnostics(run.id(), run.state(), outcome, stderr));
+    }
+
+    private static String tail(String text, int max) {
+        if (text == null) return "";
+        return text.length() <= max ? text : text.substring(text.length() - max);
+    }
 }

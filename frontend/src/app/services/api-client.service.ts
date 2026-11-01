@@ -120,6 +120,10 @@ export class ApiClient {
     return this.http.get<T[]>(`${this.base}/runs/${id}/hints`);
   }
 
+  getRunDiagnostics<T = any>(id: string): Observable<T> {
+    return this.http.get<T>(`${this.base}/runs/${id}/diagnostics`);
+  }
+
   exportRun(id: string, format: 'markdown' | 'html' = 'markdown'): Observable<Blob> {
     return this.http.get(`${this.base}/runs/${id}/export?format=${format}`, { responseType: 'blob' });
   }

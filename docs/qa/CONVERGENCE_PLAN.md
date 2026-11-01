@@ -20,8 +20,8 @@ session is labelled as prior evidence.
 
 Scoring against that definition:
 
-- **~83%** overall (up from ~80% after C1–C3 landed on 2026-11-01).
-- **~94%** against the narrower portfolio/demo scope used by
+- **~88%** overall (up from ~83% after C3–C5 landed on 2026-11-01).
+- **~95%** against the narrower portfolio/demo scope used by
   [`../release-readiness.md`](../release-readiness.md), which explicitly excludes the production-shaped
   TLS deployment.
 
@@ -34,16 +34,16 @@ proving and unblocking, not building.
 
 | Area | Weight | Current state | Evidence basis | Score |
 | --- | --- | --- | --- | --- |
-| Core UI workflows (shell, overview, catalog, runs, run detail, compare) | 25% | All 7 findings from the live session are fixed except the deferred backend one; 6 verified in the browser | Live UI session 2026-11-01 + `overview`/`compare`/`experiments`/`run-detail` specs | 92% |
+| Core UI workflows (shell, overview, catalog, runs, run detail, compare) | 25% | All 7 live-session findings fixed, tested and verified in the browser — including a real FAILED run showing its outcome and stderr tail | Live UI session 2026-11-01 + `overview`/`compare`/`experiments`/`run-detail` specs | 98% |
 | Execution engine & orchestration | 20% | Bounded k6 runner, run manifests, artifacts, stderr tailing, duration-unit fix | 143 backend tests green 2026-10-31; QF-DEF-06/07/08 verified fixed | 90% |
 | Authentication & authorization | 15% | Implemented and previously accepted end-to-end; **not running now** | 9/9 real-stack pass 2026-10-31; QF-DEF-01..04, 10, 12 fixed. Unverified today | 85% |
 | Evidence integrity (comparisons, plans, artifacts) | 10% | Verdict engine with compatibility blockers/warnings, exports, run-scoped plan route; self-comparison now refused client-side | Backend comparison tests; BUG-QF-004 fixed 2026-11-01 | 90% |
-| Test automation & CI reproducibility | 10% | **Fixed.** The abort was a native V8 OOM; a bounded Vitest fork pool restores reproducibility (`49 tests, 9 files, exit 0`, no env vars) | `frontend/vitest.config.ts`, `logs/qa-test-config.log` | 90% |
-| Data/environment readiness | 10% | Local database has **0 rows**; 250-row verified state and 1M-row benchmark data exist but are not loaded | `/api/lab/readiness` `rowCount: 0`, 2026-11-01 | 55% |
+| Test automation & CI reproducibility | 10% | **Fixed.** The abort was a native V8 OOM; a bounded Vitest fork pool restores reproducibility (`50 tests, 9 files, exit 0`, no env vars) | `frontend/vitest.config.ts`, `logs/qa-test-config.log` | 92% |
+| Data/environment readiness | 10% | **1,000,000 rows loaded and served by the API.** The stack had been running against an empty H2 database while the load went to the Compose Postgres; it now runs on PostgreSQL 17.11 | `/api/lab/readiness` `rowCount: 1000000`, 2026-11-01 | 95% |
 | Ops: monitoring, email, backup/restore, restart | 5% | `[FIRING:1]`/`[RESOLVED]` delivered to Mailpit; `pg_dump`→`pg_restore` counts matched; restart persistence verified | `../release-readiness.md`, 2026-10-31 | 90% |
 | Production-shaped TLS deployment | 5% | Configured, never deployed against real infrastructure | `docker-compose.production.yml`; verdict excludes it | 30% |
 
-Weighted total: **≈ 83%**.
+Weighted total: **≈ 88%**.
 
 ### Snapshot of the running environment (2026-11-01)
 
@@ -53,10 +53,10 @@ Weighted total: **≈ 83%**.
 | Compose services up | `db`, `backend`, `frontend`, `postgres-exporter` |
 | Compose services absent | `keycloak`, `mailpit`, `prometheus`, `alertmanager` |
 | Security profile | `QF_SPRING_PROFILE=default` → `authEnabled:false`, `operator:true`, development banner shown |
-| Database | `rowCount: 0` |
+| Database | `rowCount: 1000000` (PostgreSQL 17.11) |
 | k6 | UP (`tools\k6\k6.exe`) |
 | Frontend build | Green — 358.30 kB initial / 97.81 kB transfer (budget warns at 400 kB) |
-| Frontend specs | 9 files, **49 tests passing** (`npm test`, exit 0, no env vars) |
+| Frontend specs | 9 files, **50 tests passing** (`npm test`, exit 0, no env vars) |
 
 ---
 
@@ -99,7 +99,7 @@ repository can make locally, which undermines every other row in the scorecard.
 **Acceptance:** `cd frontend && npm test` exits 0 with a full file count (currently 8 files) and no worker
 crashes, on two consecutive runs.
 
-### C3 — Close the open UI defects (0.5 d) — **DONE except QF-005**
+### C3 — Close the open UI defects (0.5 d) — **DONE 2026-11-01**
 
 | Defect | Action | Acceptance |
 | --- | --- | --- |
@@ -107,10 +107,10 @@ crashes, on two consecutive runs.
 | BUG-QF-006 (Low) | Only render the `LIVE:` badge for non-terminal states | Component test for a terminal run |
 | BUG-QF-005 (Medium, deferred) | Persist a failure reason: capture the stderr tail / last orchestrator error onto the run document, expose it via `GET /api/runs/{id}`, render it on run detail | Backend test asserting the field is populated for a deliberately failing run; frontend test asserting it renders |
 
-**Outcome:** BUG-QF-006 and BUG-QF-007 are fixed, tested and verified in the browser. BUG-QF-005 stays open:
-the orchestrator already computes an `outcome` string and stores it on the run manifest, but the API returns
-`ExperimentRun`, which has no such field — surfacing it needs a new column plus mapper and schema changes.
-That is a schema decision, not a defect patch, so it is left deliberately deferred.
+**Outcome:** all three are fixed, tested and verified in the browser. BUG-QF-005 was solved without a schema
+change: the outcome and the captured stderr were already on the manifest and as an artifact, so an additive
+read-only `GET /api/runs/{id}/diagnostics` exposes them and the detail page renders a "Why it failed" block.
+The earlier claim that this needed a new column was incorrect — `ddl-auto=none` still holds.
 
 ### C4 — Re-verify the authenticated stack end-to-end (0.5 d)
 

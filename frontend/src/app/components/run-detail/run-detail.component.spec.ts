@@ -56,6 +56,12 @@ function setup(state = 'QUEUED', overrides: Partial<Record<string, any>> = {}) {
   const api = {
     getRun: vi.fn(() => of(run(state))),
     getHints: vi.fn(() => of([])),
+    getRunDiagnostics: vi.fn(() => of({
+      runId: 'run-1',
+      state: 'FAILED',
+      outcome: 'failed with exit code 99',
+      stderrTail: 'k6: duration must be at least 1s, but is 10ms',
+    })),
     sseEvents: vi.fn(() => sse as unknown as EventSource),
     startRun: vi.fn(() => of(run('RUNNING'))),
     cancelRun: vi.fn(() => of({ id: 'run-1', state: 'CANCELLING' })),
@@ -163,5 +169,14 @@ describe('RunDetailComponent', () => {
     const { fixture } = setup('FAILED');
 
     expect(fixture.nativeElement.textContent).not.toContain('Live:');
+  });
+
+  it('explains why a failed run failed instead of showing a bare state', () => {
+    const { fixture } = setup('FAILED');
+    const text = fixture.nativeElement.textContent as string;
+
+    expect(text).toContain('Why it failed:');
+    expect(text).toContain('failed with exit code 99');
+    expect(text).toContain('duration must be at least 1s');
   });
 });
