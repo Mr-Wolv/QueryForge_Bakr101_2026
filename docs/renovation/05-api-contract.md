@@ -107,12 +107,14 @@ Response 409 (duplicate client request id):
 
 ### GET /api/runs
 
-Query params: `page` (default 0), `size` (default 20, max 100), `state` (optional filter).
+Query params: `page` (default 0), `size` (default 20, max 100), `state`, `templateId`,
+`from`, `to`, `sortBy` (`id`, `templateId`, `state`, `startedAt`, `durationMs`), and
+`sortDirection` (`asc` or `desc`).
 
 Response 200:
 ```json
 {
-  "content": [ /* RunRun DTOs */ ],
+  "content": [ /* ExperimentRun DTOs */ ],
   "page": 0,
   "size": 20,
   "totalElements": 42,
@@ -123,6 +125,11 @@ Response 200:
 ### GET /api/runs/{id}
 
 Response 200: same shape as POST response but populated.
+
+### POST /api/runs/{id}/rerun
+
+Creates a new queued run using the source run's template and parameters. Returns 201 with the new
+run document.
 
 ### POST /api/runs/{id}/cancel
 
@@ -142,6 +149,9 @@ Response 200:
   { "artifactId": "plan", "contentType": "application/json", "description": "EXPLAIN plan" }
 ]
 ```
+
+Append `?format=zip` to download all artifacts for that run as a ZIP archive. The legacy global
+`/api/artifacts/{artifactId}` route is deprecated; use the run-scoped endpoint below.
 
 ### GET /api/runs/{id}/artifacts/{artifactId}
 
@@ -173,6 +183,18 @@ Response 201:
 }
 ```
 
+### GET /api/comparisons
+
+Returns the saved comparison history, newest first.
+
+### GET /api/comparisons/{id}
+
+Returns one persisted comparison report.
+
+### GET /api/comparisons/{id}/export?format=markdown|html
+
+Exports a persisted report as Markdown or HTML.
+
 ### GET /api/runs/{id}/events
 
 Content-Type: `text/event-stream`.
@@ -183,7 +205,7 @@ event: state
 data: {"state":"RUNNING","at":"2026-10-29T19:52:00Z"}
 
 event: log
-data: {"stream":"stdout","text":"running scenario search..."}
+data: {"stream":"stdout","text":"INFO: running scenario search...","message":"running scenario search...","level":"INFO","at":"2026-10-29T19:52:01Z"}
 
 event: artifact
 data: {"artifactId":"plan","at":"..."}
@@ -191,3 +213,6 @@ data: {"artifactId":"plan","at":"..."}
 event: error
 data: {"message":"runner process exited 1"}
 ```
+
+The `log` event includes server-captured ISO-8601 time (`at`), normalized severity (`level`),
+original output (`text`), and display-ready message (`message`).
