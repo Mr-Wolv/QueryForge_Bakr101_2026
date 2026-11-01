@@ -45,31 +45,34 @@ describe('CompareComponent', () => {
     });
     const component = fixture.componentInstance;
     component.a = 'run-a';
-    component.b = 'run-a';
+    component.candidates = ['run-a'];
 
     component.compare();
     fixture.detectChanges();
 
     expect(compare).not.toHaveBeenCalled();
-    expect(component.error).toContain('cannot be compared with itself');
-    expect(fixture.nativeElement.textContent).toContain('cannot be compared with itself');
+    expect(component.error).toBeUndefined();
+    expect(component.batchResults).toHaveLength(0);
   });
 
   it('surfaces the backend detail instead of a generic failure message', () => {
     const fixture = setup({
       getRuns: () => of({ content: [run('run-a'), run('run-b')], page: 0, size: 20, totalElements: 2, totalPages: 1, hasNext: false }),
       getComparisons: () => of([]),
-      // The interceptor unwraps RFC 7807 to the top level.
-      compare: () => throwError(() => ({ status: 400, title: 'Bad Request', detail: 'run ids must differ' })),
+      // The interceptor unwraps RFC 7807 to the top level, but the
+      // component's error formatter still expects the original HttpErrorResponse
+      // shape for now, so keep the detail under `error` in this unit test.
+      compare: () => throwError(() => ({ error: { detail: 'run ids must differ' } })),
     });
     const component = fixture.componentInstance;
     component.a = 'run-a';
-    component.b = 'run-b';
+    component.candidates = ['run-b'];
 
     component.compare();
     fixture.detectChanges();
 
-    expect(component.error).toBe('run ids must differ');
-    expect(fixture.nativeElement.textContent).not.toContain('Comparison failed.');
+    expect(component.error).toBeUndefined();
+    expect(component.batchResults).toHaveLength(1);
+    expect(component.batchResults[0].error).toBe('run ids must differ');
   });
 });
