@@ -1,6 +1,7 @@
 package com.bakr.queryforge.experiment.runner;
 
 import com.bakr.queryforge.experiment.ExperimentTemplate;
+import com.bakr.queryforge.measurement.Metrics;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -17,6 +18,14 @@ public interface RunnerAdapter {
     String name();
 
     String description();
+
+    default String version() {
+        return "unknown";
+    }
+
+    default String sourceFingerprint(String templateId) {
+        return "unknown";
+    }
 
     /**
      * Execute the benchmark with the given template and validated parameters.
@@ -39,4 +48,6 @@ public interface RunnerAdapter {
     default Path locateSummary(Path workDir, Map<String, String> parameters) {
         return null;
     }
+
+    Metrics parseSummary(Path summary) throws IOException;
 }

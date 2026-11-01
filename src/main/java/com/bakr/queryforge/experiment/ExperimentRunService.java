@@ -5,6 +5,7 @@ import com.bakr.queryforge.artifact.RunManifest;
 import com.bakr.queryforge.service.PageResponse;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,7 +32,7 @@ public class ExperimentRunService {
 
     public PageResponse<ExperimentRun> findPage(String state, int page, int size) {
         if (persistence != null) {
-            return persistence.findPage(state, page, size);
+            return persistence.findPage(state, null, null, null, page, size, "startedAt", "desc");
         }
         int safePage = Math.max(0, page);
         int safeSize = Math.min(100, Math.max(1, size));
@@ -47,10 +48,19 @@ public class ExperimentRunService {
         return PageResponse.of(content, safePage, safeSize, total);
     }
 
+    public PageResponse<ExperimentRun> findPage(
+            String state, String templateId, Instant from, Instant toExclusive,
+            int page, int size, String sortBy, String sortDirection) {
+        if (persistence == null) {
+            return findPage(state, page, size);
+        }
+        return persistence.findPage(
+                state, templateId, from, toExclusive, page, size, sortBy, sortDirection);
+    }
+
     public Optional<ExperimentRun> findById(String id) {
         if (persistence != null) {
-            return persistence.findById(id)
-                    .or(() -> java.util.Optional.empty());
+            return persistence.findById(id);
         }
         return orchestrator.findById(id)
                 .or(() -> templates.loadRuns().stream()
@@ -60,14 +70,8 @@ public class ExperimentRunService {
 
     public PageResponse<ExperimentRun> findByTemplate(String templateId, int page, int size) {
         if (persistence != null) {
-            int safePage = Math.max(0, page);
-            int safeSize = Math.min(100, Math.max(1, size));
-            var all = persistence.findByTemplate(templateId);
-            long total = all.size();
-            int from = Math.min(safePage * safeSize, all.size());
-            int to = Math.min(from + safeSize, all.size());
-            List<ExperimentRun> content = all.subList(from, to);
-            return PageResponse.of(content, safePage, safeSize, total);
+            return persistence.findPage(
+                    null, templateId, null, null, page, size, "startedAt", "desc");
         }
         int safePage = Math.max(0, page);
         int safeSize = Math.min(100, Math.max(1, size));

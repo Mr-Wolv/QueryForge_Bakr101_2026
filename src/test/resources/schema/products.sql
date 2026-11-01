@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS experiment_runs (
     parameters    CLOB,
     metrics       CLOB,
     app_commit    VARCHAR(64),
+    artifacts     CLOB,
+    version       BIGINT       NOT NULL DEFAULT 0,
     created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

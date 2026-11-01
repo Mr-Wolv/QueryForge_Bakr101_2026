@@ -9,8 +9,9 @@ import java.util.UUID;
  *
  * <p>This is the first increment of the DB-backed runs store (Phase 5). The
  * {@link com.bakr.queryforge.experiment.ExperimentRun} record remains the
- * API-facing type; this entity is the durable backing store. Conversion between
- * the two happens in {@link com.bakr.queryforge.experiment.RunStore}.
+ * API-facing type; this entity is the durable backing store. Conversion happens
+ * in {@link com.bakr.queryforge.experiment.ExperimentRunMapper} and persistence in
+ * {@link com.bakr.queryforge.experiment.RunPersistenceService}.
  */
 @Entity
 @Table(name = "experiment_runs")
@@ -41,8 +42,15 @@ public class ExperimentRunEntity {
     @Column(name = "metrics", columnDefinition = "TEXT")
     private String metricsJson;
 
+    @Column(name = "artifacts", columnDefinition = "TEXT")
+    private String artifactsJson;
+
     @Column(name = "app_commit", length = 64)
     private String appCommit;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
@@ -75,8 +83,12 @@ public class ExperimentRunEntity {
     public void setParametersJson(String parametersJson) { this.parametersJson = parametersJson; }
     public String getMetricsJson() { return metricsJson; }
     public void setMetricsJson(String metricsJson) { this.metricsJson = metricsJson; }
+    public String getArtifactsJson() { return artifactsJson; }
+    public void setArtifactsJson(String artifactsJson) { this.artifactsJson = artifactsJson; }
     public String getAppCommit() { return appCommit; }
     public void setAppCommit(String appCommit) { this.appCommit = appCommit; }
+    public Long getVersion() { return version; }
+    public void setVersion(Long version) { this.version = version; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

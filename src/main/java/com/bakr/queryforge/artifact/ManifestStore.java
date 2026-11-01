@@ -115,6 +115,43 @@ public class ManifestStore {
         return readAll(0, Integer.MAX_VALUE);
     }
 
+    /**
+     * Read every stored manifest for the one-time database import. Unlike the
+     * best-effort catalog reader, corrupt manifests fail startup rather than
+     * silently disappearing from durable run history.
+     */
+    public List<RunManifest> readAllStrict() throws IOException {
+        if (!Files.isDirectory(runsDir)) return List.of();
+
+        List<Path> paths;
+        try (var stream = Files.list(runsDir)) {
+            paths = stream.sorted().toList();
+        }
+
+        Map<String, RunManifest> byId = new LinkedHashMap<>();
+        for (Path path : paths) {
+            if (Files.isDirectory(path)) {
+                Path manifest = path.resolve(MANIFEST_FILE);
+                if (Files.isRegularFile(manifest)) {
+                    readRequiredManifest(manifest).ifPresent(m -> byId.put(m.runId(), m));
+                }
+            } else if (path.getFileName().toString().endsWith(".json")) {
+                RunManifest manifest = readRequiredManifest(path)
+                        .orElseThrow(() -> new IOException("run manifest is empty: " + path));
+                byId.putIfAbsent(manifest.runId(), manifest);
+            }
+        }
+        return List.copyOf(byId.values());
+    }
+
+    private Optional<RunManifest> readRequiredManifest(Path path) throws IOException {
+        Optional<RunManifest> parsed = readPath(path);
+        if (parsed.isEmpty()) {
+            throw new IOException("could not parse run manifest: " + path);
+        }
+        return parsed;
+    }
+
     public long countAll() {
         if (!Files.isDirectory(runsDir)) return 0;
         long count = 0;

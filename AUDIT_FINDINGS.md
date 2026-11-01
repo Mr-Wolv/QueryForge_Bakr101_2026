@@ -525,3 +525,16 @@ Confirmed `cookies.txt`, `secrets/qf_oidc_client_secret.txt`, and the literal Ke
 Ran an in-memory pattern scan against 307 current worktree text files and 714 unique text blobs reachable from the local `main` at the validated source SHA. It checked private-key headers, common AWS/GitHub/Slack/OpenAI token shapes, JWT-like strings, and quoted credential assignments. No high-confidence key/token-format matches were found. Four generic assignment candidates were classified without displaying values: two PostgreSQL role password bind parameters in `db/init/03-create-app-roles.sh` and two static test credentials in `frontend/e2e/real-stack.spec.ts`. This custom pattern scan is bounded and not equivalent to a dedicated Git-history scanner; neither `gitleaks` nor `trufflehog` is installed in this worktree.
 
 **Validation:** `docker compose --env-file .env.example config --quiet` and `docker compose --env-file .env.example -f docker-compose.production.yml config --quiet` both passed with disposable validation values and temporary secret files. These commands only rendered configuration; they did not start or mutate services. The post-check read-only `docker ps --format '{{.Names}}'` listed only `qf-docker-proxy`. The tracked client-secret file was previously assessed without printing and matched the local dummy realm fixture; the cookie entry was loopback-only XSRF metadata. If either historical value could have been reused outside that local fixture, invalidation/rotation and history cleanup remain explicit owner actions; neither is performed or required to be inferred here.
+
+## Current Branch Validation Checkpoint (2026-11-01)
+
+After the accessibility, ADR, and credential-hygiene commits, the full backend suite passed with the disposable PostgreSQL integration tests enabled by the available Docker engine. The frontend unit, dependency-audit, production build, and expanded accessibility checks also passed on the same implementation tree. The Angular build still emits existing optional-chain and CSS-budget warnings; these are not build failures.
+
+| Exact command | Result |
+|---|---|
+| `mvn -B -ntp test` | **Passed:** 202 tests, 0 failures/errors/skips; `PostgresIntegrationSmokeTest` ran 5/5 using its isolated Testcontainers PostgreSQL. |
+| `mvn -B -ntp -Dtest=PostgresIntegrationSmokeTest test` | **Re-run after the run-store documentation correction:** 5/5 passed; disposable PostgreSQL 17 applied Flyway baseline v2 plus migrations v3/v4, and exercised filtering/pagination, idempotent backfill, and optimistic locking. |
+| `npm test` (from `frontend`) | **Passed:** 41/41 tests. |
+| `npm audit --audit-level=high` (from `frontend`) | **Passed:** 0 vulnerabilities. |
+| `npm run build:analyze` (from `frontend`) | **Passed:** Angular production build and analysis stats emitted; existing compiler/CSS-budget warnings remain. |
+| `$env:PLAYWRIGHT_PORT='43141'; npm run e2e -- e2e/a11y.spec.ts` (from `frontend`) | **Passed:** 6/6 tests; six routes scanned in light and dark themes with no tagged axe violations, plus label, keyboard, toast, and image checks. |

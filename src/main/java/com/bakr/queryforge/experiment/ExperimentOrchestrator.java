@@ -6,16 +6,12 @@ import com.bakr.queryforge.artifact.RunManifest;
 import com.bakr.queryforge.experiment.runner.K6RunnerAdapter;
 import com.bakr.queryforge.experiment.runner.RunnerAdapter;
 import com.bakr.queryforge.measurement.Metrics;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -27,12 +23,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
@@ -44,9 +35,6 @@ import java.util.regex.Pattern;
 @Service
 public class ExperimentOrchestrator {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
-            .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     private static final Pattern SAFE_TAG = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,63}");
     private static final Pattern DURATION = Pattern.compile("\\d{1,4}(s|m)?");
     private static final Set<String> TERMINAL_STATES = Set.of(
@@ -58,7 +46,7 @@ public class ExperimentOrchestrator {
     private final ExperimentTemplateService templates;
     private final ManifestStore manifests;
     private final EnvironmentFingerprintService fingerprints;
-    private final RunEventBus events;
+    private final RunEventPublisher events;
     private final List<RunnerAdapter> adapters;
 
     private final Map<String, ExperimentRun> activeRuns = new ConcurrentHashMap<>();
@@ -66,12 +54,10 @@ public class ExperimentOrchestrator {
     private final Map<String, Process> runningProcesses = new ConcurrentHashMap<>();
     private final Set<String> cancelRequested = ConcurrentHashMap.newKeySet();
     private final Set<String> startingRuns = ConcurrentHashMap.newKeySet();
-    private final ScheduledExecutorService watchdog =
-            Executors.newSingleThreadScheduledExecutor(r -> daemon(r, "qf-watchdog"));
-    private final ExecutorService runnerPool =
-            Executors.newCachedThreadPool(r -> daemon(r, "qf-runner"));
-
     private final RunPersistenceService persistence;
+    private final RunScheduler scheduler;
+    private final ProcessExecutor processExecutor;
+    private final ManifestWriter manifestWriter;
 
     public ExperimentOrchestrator(ExperimentTemplateService templates,
                                   ManifestStore manifests,
@@ -81,19 +67,38 @@ public class ExperimentOrchestrator {
         this(templates, manifests, fingerprints, events, adapters, null);
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
     public ExperimentOrchestrator(ExperimentTemplateService templates,
                                   ManifestStore manifests,
                                   EnvironmentFingerprintService fingerprints,
                                   RunEventBus events,
                                   List<RunnerAdapter> adapters,
                                   RunPersistenceService persistence) {
+        this(templates, manifests, fingerprints, events, adapters, persistence,
+                null, null, null, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ExperimentOrchestrator(ExperimentTemplateService templates,
+                                  ManifestStore manifests,
+                                  EnvironmentFingerprintService fingerprints,
+                                  RunEventBus eventBus,
+                                  List<RunnerAdapter> adapters,
+                                  RunPersistenceService persistence,
+                                  RunScheduler scheduler,
+                                  ProcessExecutor processExecutor,
+                                  RunEventPublisher events,
+                                  ManifestWriter manifestWriter) {
         this.templates = templates;
         this.manifests = manifests;
         this.fingerprints = fingerprints;
-        this.events = events;
+        this.events = events == null ? new RunEventPublisher(eventBus) : events;
         this.adapters = adapters;
         this.persistence = persistence;
+        this.scheduler = scheduler == null ? new RunScheduler() : scheduler;
+        this.processExecutor = processExecutor == null
+                ? new ProcessExecutor(this.scheduler, this.events) : processExecutor;
+        this.manifestWriter = manifestWriter == null
+                ? new ManifestWriter(manifests, fingerprints) : manifestWriter;
         performRestartRecovery();
     }
 
@@ -149,7 +154,7 @@ public class ExperimentOrchestrator {
         events.state(runId, running.state());
         if (persistence != null) persistence.save(running);
 
-        runnerPool.submit(() -> {
+        scheduler.submit(() -> {
             try {
                 execute(runId, template, run.parameters());
             } catch (RuntimeException e) {
@@ -158,6 +163,7 @@ public class ExperimentOrchestrator {
                         run.startedAt(), 0, run.labels(), run.parameters(),
                         Metrics.empty(), List.of(), run.appCommit());
                 activeRuns.put(runId, failed);
+                if (persistence != null) persistence.save(failed);
                 events.error(runId, "runner failed to start: " + e.getMessage());
                 events.state(runId, failed.state());
                 events.complete(runId);
@@ -184,15 +190,15 @@ public class ExperimentOrchestrator {
         activeRuns.put(runId, running);
         events.state(runId, running.state());
 
-        EnvironmentFingerprintService.Snapshot fingerprint = fingerprints.capture();
+        RunnerAdapter adapter = adapterOrNull();
+        EnvironmentFingerprintService.Snapshot fingerprint =
+                fingerprints.capture(template.id(), parameters, adapter);
         Path workDir = manifests.runDir(runId);
         long started = System.currentTimeMillis();
         AtomicReference<ExperimentRunState> terminalState = new AtomicReference<>(ExperimentRunState.SUCCEEDED);
         AtomicReference<String> outcome = new AtomicReference<>("completed");
         Process process = null;
-        RunnerAdapter adapter = adapterOrNull();
-        LogTailer tailer = null;
-        LogTailer errorTailer = null;
+        ProcessExecutor.ManagedProcess execution = null;
         AtomicReference<ExperimentRun> result = new AtomicReference<>();
 
         try {
@@ -201,26 +207,17 @@ public class ExperimentOrchestrator {
                 throw new IllegalStateException("no runner adapter registered");
             }
 
-            process = adapter.execute(template, parameters, workDir);
+            execution = processExecutor.start(adapter, template, parameters, workDir, runId);
+            process = execution.process();
             runningProcesses.put(runId, process);
-            tailer = new LogTailer(workDir.resolve("stdout.log"), runId, "stdout", events);
-            tailer.start();
-            // k6 writes configuration and runtime failures to stderr. Without a
-            // live tail, an immediately failing run showed no output at all.
-            errorTailer = new LogTailer(workDir.resolve("stderr.log"), runId, "stderr", events);
-            errorTailer.start();
 
             final Process finalProcess = process;
-            ScheduledFuture<?> watchdogTask = watchdog.schedule(() -> {
+            int exit = processExecutor.await(execution, resolveTimeoutMs(template, parameters), () -> {
                 if (finalProcess.isAlive()) {
                     terminalState.set(ExperimentRunState.TIMED_OUT);
                     outcome.set("timed out after " + resolveTimeoutMs(template, parameters) + "ms");
-                    finalProcess.destroyForcibly();
                 }
-            }, resolveTimeoutMs(template, parameters), TimeUnit.MILLISECONDS);
-
-            int exit = process.waitFor();
-            watchdogTask.cancel(false);
+            });
 
             if (cancelRequested.contains(runId)) {
                 terminalState.set(ExperimentRunState.CANCELLED);
@@ -245,11 +242,10 @@ public class ExperimentOrchestrator {
             outcome.set("failed: " + e.getMessage());
         } finally {
             runningProcesses.remove(runId);
-            if (tailer != null) tailer.stop();
-            if (errorTailer != null) errorTailer.stop();
+            processExecutor.close(execution);
 
             List<RunArtifact> artifacts = collectArtifacts(runId, workDir, parameters, adapter);
-            Metrics metrics = readMetrics(workDir);
+            Metrics metrics = readMetrics(workDir, parameters, adapter);
             ExperimentRun finished = new ExperimentRun(
                     running.id(), running.templateId(), terminalState.get().name(),
                     startedAt, Math.max(0, System.currentTimeMillis() - started),
@@ -342,15 +338,6 @@ public class ExperimentOrchestrator {
                 }
             }
         }
-        // Backfill durable store from file manifests (best-effort).
-        if (persistence != null) {
-            for (RunManifest m : manifests.readAll()) {
-                try {
-                    persistence.save(toRun(m));
-                } catch (Exception ignored) {
-                }
-            }
-        }
     }
 
     public Optional<ExperimentRun> findById(String id) {
@@ -435,11 +422,12 @@ public class ExperimentOrchestrator {
         }
     }
 
-    private Metrics readMetrics(Path workDir) {
-        Path summary = workDir.resolve(K6RunnerAdapter.SUMMARY_FILE);
-        if (!Files.isRegularFile(summary)) return Metrics.empty();
+    private Metrics readMetrics(Path workDir, Map<String, String> parameters, RunnerAdapter adapter) {
+        if (adapter == null) return Metrics.empty();
+        Path summary = adapter.locateSummary(workDir, parameters);
+        if (summary == null || !Files.isRegularFile(summary)) return Metrics.empty();
         try {
-            return Metrics.fromK6Node(MAPPER.readTree(summary.toFile()));
+            return adapter.parseSummary(summary);
         } catch (IOException e) {
             return Metrics.empty();
         }
@@ -448,41 +436,8 @@ public class ExperimentOrchestrator {
     private void writeManifest(ExperimentRun run, String outcome,
                                EnvironmentFingerprintService.Snapshot fingerprint,
                                Instant endedAt) {
-        List<RunManifest.ArtifactEntry> artifactEntries = run.artifacts().stream().map(a -> {
-            String checksum = checksumOf(a.location());
-            return new RunManifest.ArtifactEntry(
-                    a.artifactId(), a.kind(), a.contentType(), a.location(), a.description(), checksum);
-        }).toList();
-
-        RunManifest manifest = new RunManifest(
-                run.id(),
-                run.templateId(),
-                "1.0",
-                run.state(),
-                run.startedAt(),
-                endedAt,
-                run.durationMs(),
-                outcome,
-                run.parameters(),
-                run.labels(),
-                fingerprints.toMap(fingerprint),
-                "V1",
-                fingerprint.indexState(),
-                Map.of(
-                        "cpuCores", fingerprint.cpuCores(),
-                        "memoryMb", fingerprint.memoryMb()
-                ),
-                run.appCommit(),
-                summaryMetrics(run.metrics()),
-                artifactEntries,
-                null
-        );
-        try {
-            RunManifest stored = manifests.write(manifest);
-            storedManifests.put(stored.runId(), stored);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to write manifest for " + run.id() + ": " + e.getMessage(), e);
-        }
+        RunManifest stored = manifestWriter.write(run, outcome, fingerprint, endedAt);
+        storedManifests.put(stored.runId(), stored);
     }
 
     private Optional<RunManifest> findStoredManifest(String runId) {
@@ -492,16 +447,6 @@ public class ExperimentOrchestrator {
             storedManifests.put(manifest.runId(), manifest);
             return manifest;
         });
-    }
-
-    private static Map<String, Object> summaryMetrics(Metrics metrics) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        metrics.iterationPercentiles().forEach((key, value) -> summary.put("iteration." + key, value));
-        metrics.httpPercentiles().forEach((key, value) -> summary.put("http." + key, value));
-        summary.put("iterations", metrics.iterationCount());
-        summary.put("rps", metrics.rps());
-        summary.put("testRunDurationMs", metrics.testRunDurationMs());
-        return summary;
     }
 
     private ExperimentRun toRun(RunManifest manifest) {
@@ -647,125 +592,4 @@ public class ExperimentOrchestrator {
         return Math.min(TimeUnit.MINUTES.toMillis(Math.max(minutes * 3, 5)), TimeUnit.MINUTES.toMillis(30));
     }
 
-    private static String checksumOf(String location) {
-        try {
-            Path path = Path.of(location);
-            if (!Files.isRegularFile(path)) return "unknown";
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            try (InputStream in = Files.newInputStream(path)) {
-                byte[] buffer = new byte[8192];
-                int read;
-                while ((read = in.read(buffer)) != -1) md.update(buffer, 0, read);
-            }
-            return hex(md.digest());
-        } catch (Exception e) {
-            return "unknown";
-        }
-    }
-
-    private static String hex(byte[] digest) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : digest) sb.append(String.format("%02x", b));
-        return sb.toString();
-    }
-
-    private static Thread daemon(Runnable runnable, String name) {
-        Thread thread = new Thread(runnable, name);
-        thread.setDaemon(true);
-        return thread;
-    }
-
-    /**
-     * Emits new lines from the runner's stdout log as named SSE {@code log} events.
-     * Output is optional evidence: a missing or unreadable file is ignored.
-     */
-    private static final class LogTailer {
-
-        private static final long POLL_MS = 250;
-
-        private final Path file;
-        private final String runId;
-        private final String stream;
-        private final RunEventBus events;
-        private final AtomicBoolean running = new AtomicBoolean(true);
-        private final StringBuilder pending = new StringBuilder();
-        private Thread thread;
-
-        LogTailer(Path file, String runId, String stream, RunEventBus events) {
-            this.file = file;
-            this.runId = runId;
-            this.stream = stream;
-            this.events = events;
-        }
-
-        void start() {
-            thread = daemon(this::loop, "qf-log-tail");
-            thread.start();
-        }
-
-        void stop() {
-            running.set(false);
-            if (thread != null) {
-                try {
-                    thread.join(1000);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-        }
-
-        private void loop() {
-            long offset = 0;
-            while (running.get()) {
-                offset = drain(offset);
-                try {
-                    Thread.sleep(POLL_MS);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-            drain(offset);
-            flush();
-        }
-
-        private long drain(long offset) {
-            if (!Files.isRegularFile(file)) return offset;
-            try (InputStream in = Files.newInputStream(file)) {
-                long skipped = 0;
-                while (skipped < offset) {
-                    long n = in.skip(offset - skipped);
-                    if (n <= 0) break;
-                    skipped += n;
-                }
-                byte[] buffer = new byte[4096];
-                int read;
-                while ((read = in.read(buffer)) != -1) {
-                    pending.append(new String(buffer, 0, read, StandardCharsets.UTF_8));
-                    offset += read;
-                }
-                emitLines();
-            } catch (IOException ignored) {
-                // best-effort live output
-            }
-            return offset;
-        }
-
-        private void emitLines() {
-            int newline;
-            while ((newline = pending.indexOf("\n")) >= 0) {
-                String line = pending.substring(0, newline);
-                pending.delete(0, newline + 1);
-                if (!line.isBlank()) events.log(runId, stream, line);
-            }
-        }
-
-        private void flush() {
-            emitLines();
-            if (!pending.isEmpty()) {
-                events.log(runId, stream, pending.toString());
-                pending.setLength(0);
-            }
-        }
-    }
 }

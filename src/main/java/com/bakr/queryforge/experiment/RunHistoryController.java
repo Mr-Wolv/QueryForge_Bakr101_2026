@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 
 @RestController
@@ -29,9 +31,27 @@ public class RunHistoryController {
     @GetMapping
     public PageResponse<ExperimentRun> list(
             @RequestParam(required = false) String state,
+            @RequestParam(required = false) String templateId,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(
+                    iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(
+                    iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return runs.findPage(state, page, size);
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "startedAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDirection) {
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "'from' date must not be after 'to'");
+        }
+        return runs.findPage(
+                state,
+                templateId,
+                from == null ? null : from.atStartOfDay().toInstant(ZoneOffset.UTC),
+                to == null ? null : to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC),
+                page,
+                size,
+                sortBy,
+                sortDirection);
     }
 
     @GetMapping("/{id}")

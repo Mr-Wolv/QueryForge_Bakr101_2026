@@ -1,6 +1,5 @@
 -- Experiment runs durable store (Phase 5: DB-backed runs).
--- Backs ExperimentRunEntity; replaces file-based run manifests as the source of truth
--- for pagination/sorting/filtering once the orchestrator is migrated.
+-- Backs ExperimentRunEntity; legacy run manifests are imported idempotently at startup.
 CREATE TABLE IF NOT EXISTS experiment_runs (
     id            VARCHAR(36) PRIMARY KEY,
     template_id   VARCHAR(128) NOT NULL,
