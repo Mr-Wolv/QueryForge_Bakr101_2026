@@ -21,6 +21,7 @@ target/
 *.log
 hs_err_pid*
 replay_pid*
+logs/
 
 # ===== Archives / binaries (nothing is vendored; build via Maven) =====
 *.jar
