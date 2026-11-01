@@ -2,19 +2,16 @@
   "realm": "queryforge",
   "enabled": true,
   "displayName": "QueryForge Local",
-  "registrationEnabled": true,
+  "loginTheme": "queryforge",
   "registrationAllowed": true,
   "registrationEmailAsUsername": false,
-  "resetPassword": true,
   "resetPasswordAllowed": true,
   "editUsernameAllowed": true,
-  "bruteForce": {
-    "maxFailureWaitSeconds": 900,
-    "minimumQuickLoginWaitSeconds": 60,
-    "waitIncrementSeconds": 60,
-    "quickLoginCheckMilliSeconds": 1000,
-    "maxWaitSeconds": 3600
-  },
+  "bruteForceProtected": true,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
   "groups": [
     { "name": "readers" },
     { "name": "benchmark-operators" }

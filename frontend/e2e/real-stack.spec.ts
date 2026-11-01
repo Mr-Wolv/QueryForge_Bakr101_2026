@@ -10,7 +10,7 @@ import { test, expect, type BrowserContext, type Page } from '@playwright/test';
  *
  *   QF_SPRING_PROFILE=local-auth \
  *   docker compose --profile app --profile authenticated --profile monitoring up -d
- *   cd frontend && QF_REAL_STACK=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:8080 npx playwright test e2e/real-stack.spec.ts
+ *   cd frontend && QF_REAL_STACK=1 PLAYWRIGHT_BASE_URL=http://localhost:8080 npx playwright test e2e/real-stack.spec.ts
  */
 
 const REAL_STACK = process.env.QF_REAL_STACK === '1';
@@ -32,6 +32,28 @@ test.describe('authenticated local stack', () => {
       'referrer-policy': 'strict-origin-when-cross-origin',
       'permissions-policy': 'camera=(), microphone=(), geolocation=()',
     });
+  });
+
+  test('Keycloak shows the branded login and account flows', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+
+    await expect(page.locator('#kc-form-login')).toBeVisible();
+    const heading = page.getByRole('heading', { name: 'Sign in to QueryForge' });
+    await expect(heading).toBeVisible();
+    await expect(heading).toHaveCSS('color', 'rgb(24, 52, 95)');
+    await expect(page.getByRole('link', { name: /create an account/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /forgot.*password/i })).toBeVisible();
+
+    await page.getByRole('link', { name: /create an account/i }).click();
+    await expect(page.locator('input[name="username"]')).toBeVisible();
+    await expect(page.locator('input[name="email"]')).toBeVisible();
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByRole('link', { name: /forgot.*password/i }).click();
+    await expect(page.locator('form')).toBeVisible();
+    await expect(page.locator('input[name="username"]')).toBeVisible();
   });
 
   test('viewer authenticates, can read, and cannot mutate', async ({ page }) => {
@@ -102,7 +124,7 @@ test.describe('authenticated local stack', () => {
     // Named SSE events drive the live panel; without them it never renders.
     await expect(page.locator('.live')).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('.sse-badge')).toContainText('Live: RUNNING', { timeout: 30_000 });
-    await expect(page.locator('.live-log')).toContainText('k6', { timeout: 30_000 });
+    await expect(page.locator('.log-message').filter({ hasText: 'k6' }).first()).toBeVisible({ timeout: 30_000 });
 
     await page.getByRole('button', { name: 'Cancel run' }).click();
     await expect(page.locator('.sse-badge')).toContainText('Live: CANCELLED', { timeout: 60_000 });
@@ -174,8 +196,8 @@ test.describe('authenticated local stack', () => {
     await selects.nth(1).selectOption(runIds[1]);
     await page.getByRole('button', { name: 'Compare' }).click();
 
-    await expect(page.getByRole('table')).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator('tbody tr').first()).toBeVisible();
+    await expect(page.locator('.result table')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('.result table tbody tr').first()).toBeVisible();
     await expect(page.locator('.error')).toHaveCount(0);
   });
 
@@ -205,7 +227,7 @@ async function signIn(page: Page, account: { username: string; password: string 
   if (await page.locator('#username').isVisible()) {
     await page.locator('#username').fill(account.username);
     await page.locator('#password').fill(account.password);
-    await page.locator('#kc-login').click();
+    await page.getByRole('button', { name: /sign in/i }).click();
   }
 
   // The forced success URL is the SPA root.

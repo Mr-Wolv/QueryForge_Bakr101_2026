@@ -39,6 +39,7 @@ services:
       DB_PASSWORD: ${QF_DB_PASSWORD:?Set QF_DB_PASSWORD}
       SERVER_ADDRESS: 0.0.0.0
       QF_WEB_PORT: ${QF_WEB_PORT:-8080}
+      QF_WEB_BASE_URL: ${QF_WEB_BASE_URL:-http://localhost:8080}
       QF_RUNNER_BASE_URL: ${QF_RUNNER_BASE_URL:-http://127.0.0.1:8080}
     ports:
       - "127.0.0.1:${QF_API_PORT:-8081}:8080"
@@ -91,6 +92,7 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${QF_KEYCLOAK_ADMIN_PASSWORD:?Set QF_KEYCLOAK_ADMIN_PASSWORD}
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_RELATIVE_PATH: /id/
+      KC_HOSTNAME: ${QF_WEB_BASE_URL:-http://localhost:8080}/id
       KC_HEALTH_ENABLED: "true"
       # SMTP for registration + password-reset email (mailpit capture, port 25).
       # Start with --profile monitoring to run mailpit alongside keycloak.
@@ -101,15 +103,13 @@ services:
       KC_SMTP_STARTTLS: none
       KC_SMTP_SSL: "false"
       QF_WEB_BASE_URL: ${QF_WEB_BASE_URL:-http://localhost:8080}
-      # Custom branded theme.
-      JAVA_OPTS_APPEND: "-Dkeycloak.theme=queryforge"
     volumes:
       - ./docker/keycloak/queryforge-realm.json.template:/opt/keycloak/data/template/queryforge-realm.json.template:ro
       - ./docker/keycloak/render-realm.sh:/opt/keycloak/data/template/render-realm.sh:ro
-      - ./docker/keycloak/themes:/opt/keycloak/theme:ro
+      - ./docker/keycloak/themes:/opt/keycloak/themes:ro
+      - keycloakdata:/opt/keycloak/data
     secrets:
       - qf_oidc_client_secret
-      - keycloakdata:/opt/keycloak/data
     depends_on:
       mailpit:
         condition: service_started

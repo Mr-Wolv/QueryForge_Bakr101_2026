@@ -38,6 +38,9 @@ Prerequisites: Docker Desktop (Windows or macOS), or Docker Engine with the Comp
 This starts the database, API, and browser UI without requiring a host JDK, Node.js, Python, k6,
 or Bash.
 
+Copy `.env.example` to `.env` and replace `QF_DB_PASSWORD` with a unique local password before
+starting. Compose intentionally has no database-password fallback.
+
 ```bash
 docker compose --profile app up --build -d --wait
 docker compose port frontend 80
@@ -46,9 +49,10 @@ docker compose port frontend 80
 Compose assigns available host ports dynamically and binds them to loopback. Open the frontend
 address printed by `docker compose port frontend 80`; use the same command with `backend 8080` or
 `db 5432` to discover the API or database address. The experiment catalog and first-session guide
-are available immediately. The first-boot database initialization creates the schema. If you
-already have a Compose database volume, safely apply the idempotent schema migration before loading
-data:
+are available immediately. First boot initializes the product schema (V1); the backend baselines
+that existing schema at version 2 and applies the run-store migrations (V3/V4). The optional search
+index (V2) remains a separate manual optimization. If you already have a Compose database volume,
+safely apply the idempotent product schema before loading data:
 
 ```bash
 docker compose exec db psql -U queryforge -d queryforge -v ON_ERROR_STOP=1 -f /workspace/db/migrations/V1__create_products.sql
@@ -83,13 +87,24 @@ This stack runs a real Keycloak OIDC login, PostgreSQL, the application, Prometh
 Alertmanager, and a local-only Mailpit SMTP sink. It requires no cloud account or external
 identity/email provider. Ports are loopback-only: UI `8080`, API `8081`, Keycloak is available
 through the UI at `/id/`, Mailpit `8025`, and Prometheus `9090` (override with the corresponding
-`QF_*_PORT` variables).
+`QF_*_PORT` variables). Keep `QF_WEB_BASE_URL` aligned with `QF_WEB_PORT`; Keycloak uses that
+configured origin for its canonical OIDC issuer, redirect, and web-origin allowlists.
 
 ```bash
 # PowerShell
 $env:QF_SPRING_PROFILE = 'local-auth'
+$env:QF_OIDC_CLIENT_SECRET_FILE = './secrets/qf_oidc_client_secret.txt'
+$env:QF_WEB_BASE_URL = 'http://localhost:8080'
+$env:QF_KEYCLOAK_ADMIN = 'qf-admin'
+$env:QF_KEYCLOAK_ADMIN_PASSWORD = '<set-a-strong-local-password>'
 docker compose --profile app --profile authenticated --profile monitoring up --build -d --wait
 ```
+
+Before starting the authenticated profile, copy
+`secrets/qf_oidc_client_secret.txt.example` to an ignored local secret file and replace the
+placeholder with a random URL-safe secret of at least 32 characters. The same file is supplied to
+the backend and used to render the Keycloak realm import at startup; its contents are never stored
+in the tracked realm template.
 
 Open `http://localhost:8080` and sign in with either local-only account:
 
@@ -98,9 +113,8 @@ Open `http://localhost:8080` and sign in with either local-only account:
 | `viewer` | `viewer-local-only` | Read results, plans, history, and permitted artifacts |
 | `operator` | `operator-local-only` | Viewer permissions plus create, start, cancel, and compare runs |
 
-The Keycloak administration account is `admin` / `admin-local-only` by default; change it with
-`QF_KEYCLOAK_ADMIN` and `QF_KEYCLOAK_ADMIN_PASSWORD` before use outside an isolated workstation.
-These credentials are intentionally local fixture credentials, never production credentials.
+Set `QF_KEYCLOAK_ADMIN` and `QF_KEYCLOAK_ADMIN_PASSWORD` explicitly; Compose has no bootstrap
+administrator defaults.
 
 Verify local operational email by opening `http://localhost:8025`. Alertmanager delivers to that
 sink only; a deliberate backend stop produces both a `[FIRING:1]` and a `[RESOLVED]` message, and
@@ -247,9 +261,14 @@ two seconds, avoiding repeated JSON parsing while keeping externally written res
 ## Test
 
 ```bash
-mvn test        # unit + functional tests, plus real postgres:17 coverage when Docker is up
-cd frontend && npm run build         # Angular production build
+mvn test                                      # unit + functional tests, plus real postgres:17 coverage when Docker is up
+npm --prefix frontend run build               # Angular production build
+npm --prefix frontend run build:analyze       # build + browser-stats.json for esbuild bundle analysis
 ```
+
+The bundle analysis file is `frontend/dist/frontend/browser-stats.json` and can be opened with
+[esbuild's bundle analyzer](https://esbuild.github.io/analyze/). Production bundle budgets are
+enforced by `frontend/angular.json` and the same analysis artifact is uploaded by CI.
 
 > **Docker note:** `PostgresIntegrationSmokeTest` starts `postgres:17` through Testcontainers and is
 > skipped automatically when no Docker daemon is reachable. `pom.xml` pins the engine API version
@@ -261,9 +280,8 @@ cd frontend && npm run build         # Angular production build
 > Pin `QF_DB_PORT=5433` in `.env`, restart Compose, then run
 > `QF_DB_URL=jdbc:postgresql://localhost:5433/queryforge mvn test`.
 
-> **Local database password:** Compose defaults `QF_DB_PASSWORD` to `queryforge` for local
-> development only. Set a strong value before starting Compose in any shared environment; do not
-> use the development default for production.
+> **Local database password:** Set `QF_DB_PASSWORD` explicitly before starting Compose. The
+> configuration has no database-password fallback.
 
 Playwright starts the frontend from this checkout automatically. If port `4200` is occupied, set
 `PLAYWRIGHT_PORT` to a free port. To test an already running app (including Docker Compose's

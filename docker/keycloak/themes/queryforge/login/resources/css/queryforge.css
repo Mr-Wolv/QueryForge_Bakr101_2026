@@ -1,0 +1,15 @@
+.pf-v5-c-login {
+  background-color: #f4f7fc;
+}
+
+.pf-v5-c-login__main-header .pf-v5-c-title {
+  color: #18345f;
+}
+
+.pf-v5-c-button.pf-m-primary {
+  background-color: #2454a6;
+}
+
+.pf-v5-c-button.pf-m-primary:hover {
+  background-color: #1d458a;
+}

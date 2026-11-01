@@ -11,6 +11,9 @@ separate, externally configured stack.
 
 From the repository root:
 
+Copy `.env.example` to `.env` and replace the `QF_DB_PASSWORD` placeholder with a unique local
+password. Compose deliberately rejects an unset password instead of supplying a default.
+
 ```sh
 docker compose --profile app up --build -d --wait
 docker compose --profile app ps
@@ -20,7 +23,11 @@ docker compose port backend 8080
 
 Ports are dynamically assigned unless `QF_WEB_PORT`, `QF_API_PORT`, or
 `QF_DB_PORT` is set. The API health check is available at
-`http://127.0.0.1:<api-port>/actuator/health`. For service diagnostics:
+`http://127.0.0.1:<api-port>/actuator/health`. When using the authenticated
+profile, also set `QF_WEB_BASE_URL` to the exact UI origin and port; the
+Keycloak realm renderer uses it for the OIDC callback and allowed web origin, and
+Keycloak advertises the same origin (with `/id`) as its canonical OIDC issuer.
+For service diagnostics:
 
 ```sh
 docker compose --profile app logs --tail=100 backend
@@ -104,13 +111,16 @@ production template keeps the standard 30 s / 5 min values.
   that SSO session expires.
 - Request metrics and Prometheus histograms are exposed locally at
   `/actuator/metrics` and `/actuator/prometheus`.
-- The in-memory run-history snapshot refreshes every two seconds; newly written
-  legacy result files can take up to that long to appear.
+- Run history is stored in PostgreSQL. At backend startup, existing JSON run manifests are imported
+  idempotently; keep the `benchmark/runs` volume mounted until the import has completed.
+- The database initializes the product schema from V1. Flyway baselines that pre-existing schema at
+  version 2, then applies the run-store migrations from `db/flyway` (V3/V4). The performance index
+  in `db/migrations/V2__idx_products_search.sql` remains a manual, opt-in operation.
 - The benchmark runner invokes local tooling and can consume substantial CPU,
   memory, and database capacity. Only run it against a database you control.
-- The Compose database password has a development fallback. Set
-  `QF_DB_PASSWORD` for shared local environments; this setting is not a
-  production secrets-management solution.
+- `QF_DB_PASSWORD`, `QF_KEYCLOAK_ADMIN`, and `QF_KEYCLOAK_ADMIN_PASSWORD` must be set explicitly.
+  The local OIDC client secret must be supplied through `QF_OIDC_CLIENT_SECRET_FILE`; the tracked
+  `.example` file is a nonfunctional placeholder only.
 - The default Compose stack is local-only. A separate production-shaped stack
   is described below, but it has not been deployed against a real identity
   provider, domain, SMTP service, or production host.
