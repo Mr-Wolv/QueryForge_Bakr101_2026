@@ -22,14 +22,14 @@ Environment under test at session start:
 
 | Metric | Count |
 | --- | --- |
-| Total findings | 7 |
-| Confirmed defects | 7 |
+| Total findings | 8 |
+| Confirmed defects | 8 |
 | Critical | 0 |
 | High | 1 |
-| Medium | 4 |
+| Medium | 5 |
 | Low | 2 |
 | Fixed and verified in the live UI | 7 |
-| Fixed, awaiting live verification | 0 |
+| Fixed, awaiting live verification (unit-tested; stack down after a machine crash) | 1 |
 | Deferred | 0 |
 | Open, not yet fixed | 0 |
 | Not reproducible | 0 |
@@ -46,6 +46,7 @@ Environment under test at session start:
 | BUG-QF-005 | Medium | Run detail | FAILED run shows no failure reason and an empty log pane | `qf-000-run-26770c43…` now renders "Why it failed: failed with exit code 107" plus the captured k6 stderr tail | **Fixed + verified** |
 | BUG-QF-006 | Low | Run detail | "LIVE: SUCCEEDED" / "LIVE: FAILED" badge shown for finished runs | Badge rendered on both a completed and a failed run | **Fixed + verified** |
 | BUG-QF-007 | Medium | Catalog / execution | Experiments can be launched against an empty products table with no warning | Readiness reports `0 rows`; catalog offers Start with no guard | **Fixed + verified** |
+| BUG-QF-008 | Medium | Run detail / artifacts | Historical runs report "No artifacts available" even though their manifest lists stdout and stderr | `GET /api/runs/{id}/artifacts` returned only `manifest`; the `stderr` download worked, proving the file was reachable | **Fixed, awaiting live verification** |
 
 ### Non-defect environment finding
 
@@ -185,6 +186,31 @@ is empty" and "allows launching once the dataset is populated".
 **Verification:** live catalog renders "The product dataset is empty (0 rows)" with Start disabled
 (`docs/qa/artifacts/qf-007-empty-dataset-guard.png`).
 
+### BUG-QF-008 — Historical runs report no artifacts even though their manifest lists them
+
+**Severity:** Medium · **Page:** `/runs/:id` · **Status:** Fixed, awaiting live verification
+
+**Reproduction:** Open `qf-000-run-26770c43-1793540422014`, whose manifest lists `stdout` and `stderr`.
+**Expected:** the ARTIFACTS panel lists manifest, stdout, stderr.
+**Actual:** "No artifacts available.", while `GET /api/runs/{id}/artifacts/stderr` downloaded the real stderr.
+
+**Root cause:** two readers of the same data disagreed. Both `ExperimentRunService.artifacts()` and
+`RunHistoryController`'s catalog route read `ExperimentRun.artifacts()` — the artifact list persisted on the
+run *entity* — which is empty for runs recorded before artifact persistence existed. The manifest on disk is
+the record of truth and already listed them, and `ArtifactService.resolveForRun` served them on direct
+download, so the download worked while the listing did not.
+
+**Fix:** `ExperimentRunService.artifacts()` falls back to the manifest entries when the persisted run lists
+none, and the catalog route uses that service method instead of reading the entity directly. Recorded
+artifacts still win; a run with no manifest artifacts still returns an empty list.
+
+**Regression tests:** `ExperimentRunServiceArtifactsTest` — manifest fallback, recorded artifacts preferred,
+empty when neither describes artifacts; `ExperimentRunControllerUnitTest` still 15/15.
+
+**Verification:** unit-tested only — 18/18 green (`logs/qa-mvn-verify-artifacts.log`). The live re-check
+needs the stack, and the machine crashed at that point, so the browser confirmation is genuinely outstanding
+rather than claimed.
+
 ## Verification and limitations
 
 | Check | Result |
@@ -194,6 +220,7 @@ is empty" and "allows launching once the dataset is populated".
 | `frontend` full suite | **Fixed.** The abort was a native OOM (`FATAL ERROR: Zone Allocation failed`). With a bounded Vitest fork pool (`frontend/vitest.config.ts`, 2 forks, 4 GB heap) `npm test` reports **50 tests across 9 files, exit 0**, with no environment variables. |
 | Backend test suite | **197 tests, 0 failures, 0 errors, 0 skipped** — `sh ./mvnw -B -ntp verify` → BUILD SUCCESS, 2026-11-01 (`logs/qa-mvn-verify.log`) |
 | `ExperimentRunControllerUnitTest` (after QF-005) | **15/15 pass**, including the three diagnostics cases |
+| `ExperimentRunServiceArtifactsTest` (BUG-QF-008) | **3/3 pass**; 18/18 with the controller suite |
 | Live UI | Exercised at `/`, `/experiments`, `/runs`, `/runs/:id` (succeeded + failed), `/compare` |
 | Logged out / authenticated flows | **Not exercised** — the running profile disables authentication |
 
@@ -205,6 +232,10 @@ is empty" and "allows launching once the dataset is populated".
   with `PORT=4200 npm start -- --host 127.0.0.1 --port 4200` pins it deterministically.
 - No database, volume, benchmark artifact or user data was modified, reset or deleted during the session.
   Benchmark history and the `benchmark/results` directory were left intact.
+- **2026-11-01 ~17:24 the machine crashed** (out-of-memory) during a Maven run that had only reached
+  project scan. Docker Desktop, the host API on `:8080` and the Angular dev server on `:4200` all came down.
+  Recovery was deliberately kept minimal: nothing was restarted, because every remaining step is a file
+  write. Live verification of BUG-QF-008 is what was outstanding when it happened.
 - The development bypass profile (`@Profile("!production & !local-auth")`) now disables CSRF. That profile
   authenticates nobody and issues no session cookie, so CSRF tokens protect nothing there; CSRF stays
   enforced by `ProductionSecurityConfig` for the `production` and `local-auth` profiles.

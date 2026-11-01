@@ -92,8 +92,17 @@ public class ExperimentRunService {
     }
 
     public List<RunArtifact> artifacts(String runId) {
-        return findById(runId)
-                .map(run -> run.artifacts())
+        List<RunArtifact> recorded = findById(runId)
+                .map(ExperimentRun::artifacts)
+                .orElse(List.of());
+        if (!recorded.isEmpty()) return recorded;
+        // Runs recorded before artifact persistence carry only the manifest. The manifest is
+        // the record of truth, so surface its entries instead of reporting no artifacts.
+        return manifest(runId)
+                .map(m -> m.artifacts().stream()
+                        .map(e -> new RunArtifact(e.artifactId(), e.kind(), e.contentType(),
+                                e.location(), e.description()))
+                        .toList())
                 .orElse(List.of());
     }
 

@@ -71,7 +71,7 @@ public class RunHistoryController {
     @GetMapping("/{id}/artifacts")
     public ResponseEntity<List<RunArtifact>> artifacts(@PathVariable String id) {
         return runs.findById(id)
-                .map(r -> ResponseEntity.ok(artifactService.catalogForRun(id, r.artifacts())))
+                .map(r -> ResponseEntity.ok(artifactService.catalogForRun(id, runs.artifacts(id))))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 

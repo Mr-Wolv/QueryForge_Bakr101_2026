@@ -112,7 +112,7 @@ change: the outcome and the captured stderr were already on the manifest and as 
 read-only `GET /api/runs/{id}/diagnostics` exposes them and the detail page renders a "Why it failed" block.
 The earlier claim that this needed a new column was incorrect — `ddl-auto=none` still holds.
 
-### C4 — Re-verify the authenticated stack end-to-end (0.5 d)
+### C4 — Re-verify the authenticated stack end-to-end (0.5 d) — **OPEN, not run 2026-11-01**
 
 **Why:** The strongest evidence in the repo (9/9 real-stack, RBAC, CSRF, email) is dated 2026-10-31 and the
 stack that produced it is not running. Current state cannot inherit that result.
@@ -125,6 +125,11 @@ stack that produced it is not running. Current state cannot inherit that result.
    operator can create/start/cancel; CSRF rejection message distinct from role rejection; sign-out leaves
    the app signed out on refresh.
 4. Open Mailpit and confirm the alert pair after a deliberate backend stop.
+
+**Status (2026-11-01):** not attempted. The 2026-10-31 evidence still stands as *prior* evidence only.
+Bringing up `keycloak`/`mailpit` needs the `authenticated` profile plus a Playwright Chromium download, and
+the session ended with a machine crash that took Docker down; restarting the whole stack to chase this was
+deferred rather than half-done. This is the one workstream that still requires human-approved resource use.
 
 **Acceptance:** 9/9 real-stack green against the running stack, plus the four manual checks recorded with
 dated evidence in `docs/qa/artifacts/`.
@@ -143,7 +148,7 @@ dated evidence in `docs/qa/artifacts/`.
 **Acceptance:** `/api/lab/readiness` reports the loaded row count; one A/B pair appears with real deltas and
 a compatibility verdict.
 
-### C6 — Sweep the remaining UI surfaces (0.5 d)
+### C6 — Sweep the remaining UI surfaces (0.5 d) — **PARTIAL 2026-11-01**
 
 Not exercised in the 2026-11-01 session, though partly covered by prior automated suites:
 
@@ -153,6 +158,11 @@ Not exercised in the 2026-11-01 session, though partly covered by prior automate
   reconnect after a dropped stream.
 - Keyboard-only traversal, focus visibility after navigation, accessible names on controls.
 - Responsive layout at 320 / 768 / 1440 px.
+
+**Outcome (2026-11-01):** the artifact-download row is done — and it found a real defect (BUG-QF-008,
+manifest artifacts invisible to the listing), now fixed and unit-tested. Plan explorer, run export, live SSE
+with a genuinely running run, keyboard traversal and the 320/768/1440 responsive checks were **not**
+exercised; they remain open. Closing them needs the stack running again.
 
 **Acceptance:** each item exercised live and either passing or logged in `BUG_HUNT.md` with an ID.
 
@@ -164,11 +174,17 @@ Not exercised in the 2026-11-01 session, though partly covered by prior automate
 **Outcome:** `sh ./mvnw -B -ntp verify` → BUILD SUCCESS, **197 tests, 0 failures, 0 errors, 0 skipped**
 (`logs/qa-mvn-verify.log`), including the real `postgres:17` Testcontainers coverage.
 
-### C8 — Decide the production-shaped deployment (1–2 d, or scope it out)
+### C8 — Decide the production-shaped deployment (1–2 d, or scope it out) — **SCOPED OUT 2026-11-01**
 
 Either deploy `docker-compose.production.yml` against real TLS/OIDC/SMTP infrastructure and verify it, or
 explicitly strike it from the definition of done in `release-readiness.md`. Leaving it "configured but never
 run" is the single largest remaining source of uncertainty in the scorecard.
+
+**Decision (2026-11-01):** struck from the *local* definition of done. No TLS-terminating proxy, external
+OIDC issuer or SMTP relay exists on this machine, so a production-shaped deploy could not be verified here —
+running it would produce the same unverified configuration the plan already flags. The 5% weight stays in the
+scorecard at 30% so the gap remains visible instead of being silently re-weighted away; it is the first item
+to reopen if this ever targets real infrastructure.
 
 ---
 
@@ -232,4 +248,5 @@ curl -s -o /dev/null -w '%{http_code}\n' localhost:8081/api/runs   # expect 401 
 | --- | --- |
 | 2026-11-01 | Initial plan. 7 findings from the live session, 4 fixed and verified, 3 open. Overall ≈ 80%. |
 | 2026-11-01 | C1, C2 and most of C3 landed: 9 commits, 6 of 7 findings fixed and verified, frontend suite reproducible at 49/49. Overall ≈ 83%. |
+| 2026-11-01 | C3 and C5 complete: BUG-QF-005 closed via a diagnostics endpoint (no schema change), 1,000,000 rows served by the API, BUG-QF-008 found and fixed, 50 frontend / 18 targeted backend tests green. C6 partial, C4 open, C8 scoped out. Overall ≈ 88%. |
 | 2026-11-01 | C7 closed: backend suite green at 197 tests. Working tree clean; remaining work is C4 (authenticated stack), C5 (data), C6 (UI sweep) and the deferred QF-005. |
