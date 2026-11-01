@@ -60,6 +60,13 @@ backups/
 # ===== Generated benchmark artifacts (reproducible via scripts/benchmark.sh) =====
 benchmark/runs/
 benchmark/comparisons/
+benchmark/results/
+
+# ===== Hermes desktop scratch metadata =====
+.cloud-attachments/
+
+# ===== Local toolchain scratch =====
+run-payload.json
 
 # ===== Frontend generated artifacts =====
 frontend/node_modules/
