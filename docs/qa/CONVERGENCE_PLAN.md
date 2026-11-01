@@ -20,8 +20,8 @@ session is labelled as prior evidence.
 
 Scoring against that definition:
 
-- **~80%** overall.
-- **~92%** against the narrower portfolio/demo scope used by
+- **~83%** overall (up from ~80% after C1–C3 landed on 2026-11-01).
+- **~94%** against the narrower portfolio/demo scope used by
   [`../release-readiness.md`](../release-readiness.md), which explicitly excludes the production-shaped
   TLS deployment.
 
@@ -34,16 +34,16 @@ proving and unblocking, not building.
 
 | Area | Weight | Current state | Evidence basis | Score |
 | --- | --- | --- | --- | --- |
-| Core UI workflows (shell, overview, catalog, runs, run detail, compare) | 25% | Working; 2 defects open (BUG-QF-006 Low, BUG-QF-007 Medium); 4 fixed and verified live today | Live UI session 2026-11-01 + `overview`/`compare` specs | 88% |
+| Core UI workflows (shell, overview, catalog, runs, run detail, compare) | 25% | All 7 findings from the live session are fixed except the deferred backend one; 6 verified in the browser | Live UI session 2026-11-01 + `overview`/`compare`/`experiments`/`run-detail` specs | 92% |
 | Execution engine & orchestration | 20% | Bounded k6 runner, run manifests, artifacts, stderr tailing, duration-unit fix | 143 backend tests green 2026-10-31; QF-DEF-06/07/08 verified fixed | 90% |
 | Authentication & authorization | 15% | Implemented and previously accepted end-to-end; **not running now** | 9/9 real-stack pass 2026-10-31; QF-DEF-01..04, 10, 12 fixed. Unverified today | 85% |
 | Evidence integrity (comparisons, plans, artifacts) | 10% | Verdict engine with compatibility blockers/warnings, exports, run-scoped plan route; self-comparison now refused client-side | Backend comparison tests; BUG-QF-004 fixed 2026-11-01 | 90% |
-| Test automation & CI reproducibility | 10% | Backend solid; **frontend full suite currently aborts** in a vitest worker crash | `npm test` exit 1, `0xC0000409`, 2026-11-01 | 65% |
+| Test automation & CI reproducibility | 10% | **Fixed.** The abort was a native V8 OOM; a bounded Vitest fork pool restores reproducibility (`49 tests, 9 files, exit 0`, no env vars) | `frontend/vitest.config.ts`, `logs/qa-test-config.log` | 90% |
 | Data/environment readiness | 10% | Local database has **0 rows**; 250-row verified state and 1M-row benchmark data exist but are not loaded | `/api/lab/readiness` `rowCount: 0`, 2026-11-01 | 55% |
 | Ops: monitoring, email, backup/restore, restart | 5% | `[FIRING:1]`/`[RESOLVED]` delivered to Mailpit; `pg_dump`→`pg_restore` counts matched; restart persistence verified | `../release-readiness.md`, 2026-10-31 | 90% |
 | Production-shaped TLS deployment | 5% | Configured, never deployed against real infrastructure | `docker-compose.production.yml`; verdict excludes it | 30% |
 
-Weighted total: **≈ 80%**.
+Weighted total: **≈ 83%**.
 
 ### Snapshot of the running environment (2026-11-01)
 
@@ -64,7 +64,7 @@ Weighted total: **≈ 80%**.
 
 Ordered by dependency. Effort is a rough range for one focused engineer.
 
-### C1 — Land the working tree (0.5 h) — **do first, blocks everything**
+### C1 — Land the working tree (0.5 h) — **DONE 2026-11-01**
 
 **Why:** `LocalSecurityConfig.java` and `ProblemDetailConfig.java` are modified and uncommitted from an
 earlier session, `Phase_6.md` is staged-then-deleted, and `AUDIT_FINDINGS.md` is both staged and modified.
@@ -81,7 +81,7 @@ A release cannot be called final on top of an unreviewed security-config change.
 
 **Acceptance:** `git status` clean; each commit builds and its tests pass.
 
-### C2 — Repair frontend test reproducibility (1–2 h)
+### C2 — Repair frontend test reproducibility (1–2 h) — **DONE 2026-11-01**
 
 **Why:** `npm test` aborts with vitest worker crashes (`exit 134`, `0xC0000409`) instead of reporting
 assertions. Individual spec files pass. Until this is fixed, "the tests are green" is not a claim this
@@ -99,13 +99,18 @@ repository can make locally, which undermines every other row in the scorecard.
 **Acceptance:** `cd frontend && npm test` exits 0 with a full file count (currently 8 files) and no worker
 crashes, on two consecutive runs.
 
-### C3 — Close the open UI defects (0.5 d)
+### C3 — Close the open UI defects (0.5 d) — **DONE except QF-005**
 
 | Defect | Action | Acceptance |
 | --- | --- | --- |
 | BUG-QF-007 (Medium) | Surface readiness at the launch point: disable **Start experiment** with an explanatory message when `rowCount` is 0, and warn when it is implausibly small for the selected `DATASET` | Component test asserting the button is disabled and the reason is rendered; live check with the empty database |
 | BUG-QF-006 (Low) | Only render the `LIVE:` badge for non-terminal states | Component test for a terminal run |
 | BUG-QF-005 (Medium, deferred) | Persist a failure reason: capture the stderr tail / last orchestrator error onto the run document, expose it via `GET /api/runs/{id}`, render it on run detail | Backend test asserting the field is populated for a deliberately failing run; frontend test asserting it renders |
+
+**Outcome:** BUG-QF-006 and BUG-QF-007 are fixed, tested and verified in the browser. BUG-QF-005 stays open:
+the orchestrator already computes an `outcome` string and stores it on the run manifest, but the API returns
+`ExperimentRun`, which has no such field — surfacing it needs a new column plus mapper and schema changes.
+That is a schema decision, not a defect patch, so it is left deliberately deferred.
 
 ### C4 — Re-verify the authenticated stack end-to-end (0.5 d)
 
@@ -223,3 +228,4 @@ curl -s -o /dev/null -w '%{http_code}\n' localhost:8081/api/runs   # expect 401 
 | Date | Change |
 | --- | --- |
 | 2026-11-01 | Initial plan. 7 findings from the live session, 4 fixed and verified, 3 open. Overall ≈ 80%. |
+| 2026-11-01 | C1, C2 and most of C3 landed: 9 commits, 6 of 7 findings fixed and verified, frontend suite reproducible at 49/49. Overall ≈ 83%. |

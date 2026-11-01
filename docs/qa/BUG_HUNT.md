@@ -31,7 +31,7 @@ Environment under test at session start:
 | Fixed and verified in the live UI | 4 |
 | Fixed, awaiting live verification | 0 |
 | Deferred | 1 |
-| Open, not yet fixed | 2 |
+| Open, not yet fixed | 0 |
 | Not reproducible | 0 |
 | Environment / deployment gaps (not app defects) | 1 |
 
@@ -44,8 +44,8 @@ Environment under test at session start:
 | BUG-QF-003 | Medium | Overview | "Baseline · QF-001" card could never populate for auto-named runs | "No QF-001 baseline is recorded yet." shown while many QF-001 runs existed | **Fixed + verified** |
 | BUG-QF-004 | Medium | Compare | Same run selectable on both sides; failure surfaced as a bare "Comparison failed." | Backend answers `400 {"detail":"run ids must differ"}`; the UI discarded the detail | **Fixed + verified** |
 | BUG-QF-005 | Medium | Run detail | FAILED run shows no failure reason and an empty log pane | `qf-000-run-26770c43…` renders FAILED with zeros and no diagnostic; run document has no error field | Deferred (needs backend field) |
-| BUG-QF-006 | Low | Run detail | "LIVE: SUCCEEDED" / "LIVE: FAILED" badge shown for finished runs | Badge rendered on both a completed and a failed run | Open |
-| BUG-QF-007 | Medium | Catalog / execution | Experiments can be launched against an empty products table with no warning | Readiness reports `0 rows`; catalog offers Start with no guard | Open |
+| BUG-QF-006 | Low | Run detail | "LIVE: SUCCEEDED" / "LIVE: FAILED" badge shown for finished runs | Badge rendered on both a completed and a failed run | **Fixed + verified** |
+| BUG-QF-007 | Medium | Catalog / execution | Experiments can be launched against an empty products table with no warning | Readiness reports `0 rows`; catalog offers Start with no guard | **Fixed + verified** |
 
 ### Non-defect environment finding
 
@@ -143,18 +143,30 @@ defect fix. Recorded rather than hidden.
 
 ### BUG-QF-006 — "LIVE" badge on terminal runs
 
-**Severity:** Low · **Page:** `/runs/:id` · **Status:** Open
+**Severity:** Low · **Page:** `/runs/:id` · **Status:** Fixed + verified
 
 A terminal run displays `LIVE: SUCCEEDED` / `LIVE: FAILED` next to an empty log panel. The badge only carries
-meaning while a run is active. Not yet fixed.
+meaning while a run is active.
+
+**Fix:** the badge renders only while `isActive`; the log panel still renders when lines exist.
+**Regression test:** `run-detail.component.spec.ts` — "does not advertise a live stream for a finished run".
+**Verification:** live `/runs/qf-000-run-26770c43-1793540422014` shows state FAILED with no live badge
+(`docs/qa/artifacts/qf-006-failed-run-no-live-badge.png`).
 
 ### BUG-QF-007 — No guard against measuring an empty dataset
 
-**Severity:** Medium · **Page:** `/experiments` · **Status:** Open
+**Severity:** Medium · **Page:** `/experiments` · **Status:** Fixed + verified
 
 With `/api/lab/readiness` reporting `rowCount: 0`, the catalog still offers **Start experiment** with no
 warning, so every measurement produced would be meaningless. Readiness is shown on `/` as "0 rows" but is not
-surfaced or enforced at the launch point. Not yet fixed.
+surfaced or enforced at the launch point.
+
+**Fix:** the catalog reads readiness, renders an explicit empty-dataset banner, disables **Start experiment**,
+and refuses in `launch()` as well so a keyboard or programmatic path cannot bypass the disabled button.
+**Regression tests:** `experiments.component.spec.ts` — "disables launching and explains why when the dataset
+is empty" and "allows launching once the dataset is populated".
+**Verification:** live catalog renders "The product dataset is empty (0 rows)" with Start disabled
+(`docs/qa/artifacts/qf-007-empty-dataset-guard.png`).
 
 ## Verification and limitations
 
@@ -162,7 +174,7 @@ surfaced or enforced at the launch point. Not yet fixed.
 | --- | --- |
 | `frontend` Overview spec | 3/3 pass (isolated run) |
 | `frontend` Compare spec | 2/2 pass (isolated run) |
-| `frontend` full suite | **Not conclusive** — vitest worker processes aborted (`exit 134` / `0xC0000409`) mid-run, so the suite exited 1 without assertion failures. An earlier full run in this session passed 44/44 before the new specs existed. |
+| `frontend` full suite | **Fixed.** The abort was a native OOM (`FATAL ERROR: Zone Allocation failed`). With a bounded Vitest fork pool (`frontend/vitest.config.ts`, 2 forks, 4 GB heap) `npm test` reports **49 tests across 9 files, exit 0**, with no environment variables. |
 | Backend test suite | Not run this session |
 | Live UI | Exercised at `/`, `/experiments`, `/runs`, `/runs/:id` (succeeded + failed), `/compare` |
 | Logged out / authenticated flows | **Not exercised** — the running profile disables authentication |
