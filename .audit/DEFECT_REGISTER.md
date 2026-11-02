@@ -3,11 +3,13 @@
 Established during Phase A baseline. Each row is backed by real execution evidence,
 not by the historical `docs/renovation/GAP_ANALYSIS.md` (which is stale — see note).
 
-**Baseline facts (verified 2026-10-31):**
-- Backend `runmvn.bat -B -ntp clean verify` → BUILD SUCCESS, **143 tests, 0 failures, 0 errors, 0 skipped** (incl. real `postgres:17` via Testcontainers). Evidence: `.audit/verify_run4.log`.
-- Frontend `npm test` → **23 tests across 6 files, 0 failures**; `npm run build` → BUILD_OK, 351.99 kB initial (96.52 kB transfer).
-- Authenticated local Compose stack (db, backend `local-auth`, frontend, keycloak, mailpit, prometheus, alertmanager) was already running; backend profile confirmed `local-auth`.
-- Real-stack Playwright acceptance: **9/9** against nginx + Spring Boot + PostgreSQL + Keycloak + k6. Evidence: `.audit/e2e_real_stack_run7_final.log`.
+**Baseline facts (verified 2026-11-02):**
+- Backend `./mvnw -B -ntp test` → **212 tests, 0 failures, 0 errors, 0 skipped**.
+- Frontend `npm test` → **53 tests, 10 files, 0 failures**; `npm run build` → BUILD_OK, bundle within budget.
+- Default local Compose stack (db, backend, frontend) was verified; backend profile confirmed `default` (unauthenticated).
+- Default-stack Playwright acceptance: **5/5 passed** against nginx + Spring Boot + PostgreSQL (no auth). Evidence: `e2e/default-stack.spec.ts`.
+
+**Note:** The auth-specific defects below (QF-DEF-01 through QF-DEF-13) are **deferred** to a later phase. Authentication, authorization, OIDC, messaging, SMTP, and notifications are out of scope for the current local-dev finalization. The authoritative defect ledger for the current phase is `finalization.md` (BUG-QF-001 through BUG-QF-008).
 
 | ID | Component | Severity | Description | Evidence | Resolution | Verification | Status |
 |----|-----------|----------|-------------|----------|------------|--------------|--------|

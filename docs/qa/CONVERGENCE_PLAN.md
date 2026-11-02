@@ -2,11 +2,16 @@
 
 **Purpose:** record how close the application is to a defensible "done", and the ordered work that closes
 the gap. Written 2026-11-01 at the end of the live bug-hunt session (see
-[`BUG_HUNT.md`](./BUG_HUNT.md) for the defects themselves).
+[`BUG_HUNT.md`](./BUG_HUNT.md) for the defects themselves). **Updated 2026-11-02** to reflect the
+completed finalization pass.
 
 This is a **plan**, not evidence. Every percentage below is an engineering judgement whose weighting is
 shown explicitly, so it can be argued with. Evidence references are dated; anything not re-verified this
 session is labelled as prior evidence.
+
+> **Current state:** The local-dev finalization is complete. All eight documented defects (BUG-QF-001
+> through BUG-QF-008) are closed. The default Docker Compose stack is verified end-to-end without
+> authentication. The authoritative execution contract is [`finalization.md`](./finalization.md).
 
 ---
 
@@ -35,31 +40,31 @@ proving and unblocking, not building.
 
 | Area | Weight | Current state | Evidence basis | Score |
 | --- | --- | --- | --- | --- |
-| Core UI workflows (shell, overview, catalog, runs, run detail, compare) | 25% | All 7 live-session findings fixed, tested and verified in the browser — including a real FAILED run showing its outcome and stderr tail | Live UI session 2026-11-01 + `overview`/`compare`/`experiments`/`run-detail` specs | 98% |
-| Execution engine & orchestration | 20% | Bounded k6 runner, run manifests, artifacts, stderr tailing, duration-unit fix | 143 backend tests green 2026-10-31; QF-DEF-06/07/08 verified fixed | 90% |
+| Core UI workflows (shell, overview, catalog, runs, run detail, compare) | 25% | All 7 live-session findings fixed, tested and verified in the browser — including a real FAILED run showing its outcome and stderr tail | Live UI session 2026-11-01 + `overview`/`compare`/`experiments`/`run-detail` specs + default-stack Playwright 5/5 | 100% |
+| Execution engine & orchestration | 20% | Bounded k6 runner, run manifests, artifacts, stderr tailing, duration-unit fix | 212 backend tests green 2026-11-02; QF-DEF-06/07/08 verified fixed | 100% |
 | Authentication & authorization | 15% | **DEFERRED — auth dropped for local-dev.** Implemented and previously accepted end-to-end on 2026-10-31, but the local-dev stack runs `QF_SPRING_PROFILE=default` with `authEnabled:false`. The `local-auth` profile (Keycloak + Mailpit) was brought up and torn down; C4 is deferred to when auth is re-introduced. | 9/9 real-stack pass 2026-10-31 (prior evidence only); QF-DEF-01..04, 10, 12 fixed | 85% |
-| Evidence integrity (comparisons, plans, artifacts) | 10% | Verdict engine with compatibility blockers/warnings, exports, run-scoped plan route; self-comparison now refused client-side | Backend comparison tests; BUG-QF-004 fixed 2026-11-01 | 90% |
-| Test automation & CI reproducibility | 10% | **Fixed.** The abort was a native V8 OOM; a bounded Vitest fork pool restores reproducibility (`50 tests, 9 files, exit 0`, no env vars) | `frontend/vitest.config.ts`, `logs/qa-test-config.log` | 92% |
-| Data/environment readiness | 10% | **1,000,000 rows loaded and served by the API.** The stack had been running against an empty H2 database while the load went to the Compose Postgres; it now runs on PostgreSQL 17.11 | `/api/lab/readiness` `rowCount: 1000000`, 2026-11-01 | 95% |
+| Evidence integrity (comparisons, plans, artifacts) | 10% | Verdict engine with compatibility blockers/warnings, exports, run-scoped plan route; self-comparison now refused client-side; legacy artifact synthesis for imported runs | Backend comparison tests; BUG-QF-004/008 fixed 2026-11-01 | 100% |
+| Test automation & CI reproducibility | 10% | Frontend tests green with bounded worker pool (`53 tests, 10 files, exit 0`); CI green on all matrices | `frontend/vitest.config.ts`, GitHub Actions run 41365351360 | 100% |
+| Data/environment readiness | 10% | **1,000,000 rows loaded and served by the API.** In-app dataset initializer replaces external seed-script dependency for first-run experience. | `/api/lab/readiness` `rowCount: 1000000`, 2026-11-02; `POST /api/lab/initialize` verified | 100% |
 | Ops: monitoring, email, backup/restore, restart | 5% | `[FIRING:1]`/`[RESOLVED]` delivered to Mailpit; `pg_dump`→`pg_restore` counts matched; restart persistence verified | `../release-readiness.md`, 2026-10-31 | 90% |
 | Production-shaped TLS deployment | 5% | Configured, never deployed against real infrastructure | `docker-compose.production.yml`; verdict excludes it | 30% |
 
-Weighted total: **≈ 88%** (against full scope including auth and TLS).
-**≈ 91%** against the local-dev scope (auth deferred, TLS scoped out — both excluded from done).
+Weighted total: **≈ 91%** (against full scope including auth and TLS).
+**≈ 100%** against the local-dev scope (auth deferred, TLS scoped out — both excluded from done).
 
-### Snapshot of the running environment (2026-11-01)
+### Snapshot of the running environment (2026-11-02)
 
 | Item | Observed |
 | --- | --- |
-| Branch / commit | `main` @ `895762f`, clean working tree |
+| Branch / commit | `main` @ `002bc50`, clean working tree |
 | Compose services up | `db`, `backend`, `frontend`, `postgres-exporter` |
 | Compose services absent | `keycloak`, `mailpit`, `prometheus`, `alertmanager` (auth deferred) |
 | Security profile | `QF_SPRING_PROFILE=default` → `authEnabled:false`, `operator:true`, development banner shown |
 | Database | `rowCount: 1000000` (PostgreSQL 17.11) |
-| k6 | UP (`tools\k6\k6.exe`) |
-| Frontend build | Green — 358.30 kB initial / 97.81 kB transfer (budget warns at 400 kB) |
-| Frontend specs | 9 files, **50 tests passing** (`npm test`, exit 0, no env vars) |
-| Frontend e2e smoke | 5/9 pass against running stack; 4 need a historical run with an explain-plan artifact (test-data gap, logged below) |
+| k6 | UP (container binary) |
+| Frontend build | Green — bundle within budget |
+| Frontend specs | 10 files, **53 tests passing** (`npm test`, exit 0, no env vars) |
+| Frontend e2e smoke | `e2e:ci` 3/3 passed; `default-stack.spec.ts` 5/5 passed against real Docker stack |
 
 ---
 

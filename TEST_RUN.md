@@ -17,14 +17,17 @@ QueryForge has five test layers:
 ## Quick run (everything)
 
 ```bash
-# Backend unit + functional tests
+# Backend unit + functional + integration tests
 ./mvnw -B -ntp test
 
-# Frontend E2E (requires backend on :8080 and frontend from this checkout)
+# Frontend unit tests
 cd frontend
+npm test
+
+# Frontend production build
 npm run build
 
-# Playwright starts the frontend automatically; the full smoke suite also needs backend data.
+# Playwright fixture-backed suite (stubbed API)
 npm run e2e:ci
 npx playwright test
 ```

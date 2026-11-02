@@ -4,6 +4,11 @@ Session started 2026-11-01. Live UI under test: `http://127.0.0.1:4200` (Angular
 checkout, proxying `/api` to the host API on `http://127.0.0.1:8080`). Browser: Chromium driven through
 the desktop Browser panel; every defect below was reproduced in the running application.
 
+> **Current state (2026-11-02):** All 8 documented defects (BUG-QF-001 through BUG-QF-008) are closed.
+> The authoritative defect ledger for the current finalization phase is [`finalization.md`](./finalization.md).
+> Authentication and messaging are deferred; the auth-specific defects from the earlier phase are preserved
+> in `.audit/DEFECT_REGISTER.md` (QF-DEF-01 through QF-DEF-13) as historical evidence.
+
 > Roadmap to a defensible "done" (scored ≈ 80%, with the weighted breakdown and exit criteria):
 > [`CONVERGENCE_PLAN.md`](./CONVERGENCE_PLAN.md).
 
