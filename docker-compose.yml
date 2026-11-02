@@ -93,8 +93,8 @@ services:
     entrypoint: ["/bin/sh", "/opt/keycloak/data/template/render-realm.sh"]
     command: start-dev --import-realm
     environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${QF_KEYCLOAK_ADMIN:?Set QF_KEYCLOAK_ADMIN}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${QF_KEYCLOAK_ADMIN_PASSWORD:?Set QF_KEYCLOAK_ADMIN_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${QF_KEYCLOAK_ADMIN:-local-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${QF_KEYCLOAK_ADMIN_PASSWORD:-local-password}
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_RELATIVE_PATH: /id/
       KC_HOSTNAME: ${QF_WEB_BASE_URL:-http://localhost:8080}/id
