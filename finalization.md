@@ -112,6 +112,7 @@ All nine documented defects are closed. Regression tests exist for each.
 - QF-002, QF-003, QF-004 live browser execution (UI paths confirmed by QF-000/001 passes + backend tests)
 - Legacy artifact re-verification (requires re-importing legacy run data after DB truncation for P0 init testing)
 - Default-stack Playwright suite in CI (P2-01)
+- Clean-clone startup from a truly fresh network clone (structure validated; full bring-up verified in disposable clone)
 
 ---
 
@@ -236,10 +237,11 @@ When a task requires a clean environment, use a disposable clone or container ra
 | 2026-11-02 | P0-01/P0-02 implementation | No self-service init UI; missing seed dir | Added DatasetInitializer service + UI; created benchmark/seed/.gitkeep; live verified empty-dataset flow |
 | 2026-11-02 | P1 live verification | QF-000/001 not yet exercised in current evidence | QF-000 (~35s) and QF-001 (~59s) launched and completed with artifacts; runs history, pagination, compare verified |
 | 2026-11-02 | Documentation consistency | README/pom.xml Spring Boot version mismatch | Updated README, architecture.md, QUERYFORGE_RENOVATION_PLAN.md, QF-003-concurrency.md to 4.1.2 |
+| 2026-11-02 | Clean-clone verification | Not yet executed | Disposable clone verified: git clone succeeds, docker compose up without manual dirs, backend UP, frontend 200, DB UP, init 0→10000 rows |
 
 ### Current blockers
 
-- Clean-clone startup from a truly fresh checkout not yet executed (all components verified individually)
+- Legacy artifact live re-verification pending re-import after DB truncation for P0 init testing
 
 ---
 
@@ -253,6 +255,7 @@ QueryForge is finalized when **all** of the following are true and evidenced:
 - [x] Backend health endpoint returns `UP`.
 - [x] Frontend returns HTTP 200.
 - [x] Database is reachable and schema is applied by Flyway.
+- [x] First-run dataset initialization succeeds from clean DB (`rowCount: 0` → `10000` via `POST /api/lab/initialize`).
 
 ### B. First-run dataset initialization
 
