@@ -2,7 +2,7 @@
 
 **PostgreSQL Performance Engineering Service** — build it, measure it, find the bottleneck, fix it, prove it.
 
-A small Spring Boot 3.5.5 / Java 25 REST service over a 1,000,000-row PostgreSQL product catalog,
+A small Spring Boot 4.1.2 / Java 25 REST service over a 1,000,000-row PostgreSQL product catalog,
 used to run controlled, reproducible database performance experiments: filtered search, OFFSET vs
 keyset pagination, and concurrency behavior — each documented with `EXPLAIN (ANALYZE, BUFFERS)`
 before/after evidence.

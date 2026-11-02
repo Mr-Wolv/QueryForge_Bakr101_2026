@@ -9,7 +9,7 @@
 
 ## 1. Executive summary
 
-QueryForge already has a strong technical core. The current repository describes a Java 25 / Spring Boot 3.5.5 REST service over PostgreSQL 17, a deterministic seed-controlled catalog with one million rows, k6 workload scripts, captured `EXPLAIN (ANALYZE, BUFFERS)` plans, and repeatable experiments covering dataset scaling, index selection, pagination, concurrency, and index ordering.
+QueryForge already has a strong technical core. The current repository describes a Java 25 / Spring Boot 4.1.2 REST service over PostgreSQL 17, a deterministic seed-controlled catalog with one million rows, k6 workload scripts, captured `EXPLAIN (ANALYZE, BUFFERS)` plans, and repeatable experiments covering dataset scaling, index selection, pagination, concurrency, and index ordering.
 
 The project has measured results worth preserving. Its README reports that a workload-shaped composite index reduced filtered-search p95 latency from 8.18 seconds to 130 milliseconds at 10 requests/second. It also documents the trade-offs: roughly 60 MB of index storage, write overhead, the different behavior of OFFSET and keyset pagination, and a later throughput plateau caused by the ten-connection pool. The order-first index candidate was measured and deliberately not applied because it optimized a non-bottleneck and imposed another substantial structure.
 

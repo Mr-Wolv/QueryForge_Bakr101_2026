@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Spring Boot 3.5.5 / Java 25 service over PostgreSQL 17 whose purpose is to **measure** database
+A Spring Boot 4.1.2 / Java 25 service over PostgreSQL 17 whose purpose is to **measure** database
 behavior: filtered search, sorted pagination, and concurrency — then to optimize it via controlled,
 reproducible experiments. The service also orchestrates benchmark runs and preserves their results
 for comparison and review.
@@ -11,7 +11,7 @@ for comparison and review.
 
 | Layer | Choice |
 | --- | --- |
-| Runtime | Java 25, Spring Boot 3.5.5 |
+| Runtime | Java 25, Spring Boot 4.1.2 |
 | Web | Spring Web (MVC, Tomcat) |
 | Browser UI | Angular 22 SPA, deployed separately from the API |
 | Identity | Keycloak OIDC in production; an explicit local development security profile |
