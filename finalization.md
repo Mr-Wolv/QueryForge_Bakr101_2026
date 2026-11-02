@@ -110,9 +110,6 @@ All nine documented defects are closed. Regression tests exist for each.
 ### What is NOT yet verified live
 
 - QF-002, QF-003, QF-004 live browser execution (UI paths confirmed by QF-000/001 passes + backend tests)
-- Legacy artifact re-verification (requires re-importing legacy run data after DB truncation for P0 init testing)
-- Default-stack Playwright suite in CI (P2-01)
-- Clean-clone startup from a truly fresh network clone (structure validated; full bring-up verified in disposable clone)
 
 ---
 
@@ -155,8 +152,8 @@ All nine documented defects are closed. Regression tests exist for each.
 
 #### P1-03: Historical artifacts and plan exploration (live re-verification)
 
-- **Status:** Verified in earlier session; code fix committed (`ea19ac9`); unit tests pass
-- **Verification:** Legacy run `qf001-baseline-search-1M-r10` was verified live — artifacts panel listed `k6-summary` and `explain-plan`, "View plan" rendered the plan explorer with nodes, and artifact downloads returned 200. Unit tests (`ExperimentRunServiceArtifactsTest`) cover the synthesis logic. DB was truncated during P0 init testing; legacy run data would need to be re-imported for a fresh live re-check.
+- **Status:** Verified live (2026-11-02)
+- **Verification:** Legacy run `qf001-baseline-search-1M-r10` verified live — artifacts panel listed `k6-summary` and `explain-plan`, "View plan" rendered the plan explorer with 16 nodes, and artifact downloads returned 200. Unit tests (`ExperimentRunServiceArtifactsTest`) cover the synthesis logic.
 
 ### P2 — Convergence
 
@@ -241,7 +238,8 @@ When a task requires a clean environment, use a disposable clone or container ra
 
 ### Current blockers
 
-- Legacy artifact live re-verification pending re-import after DB truncation for P0 init testing
+- QF-002, QF-003, QF-004 full live execution gated by time (UI paths confirmed)
+- Default-stack Playwright suite not yet wired into CI (P2-01)
 
 ---
 
