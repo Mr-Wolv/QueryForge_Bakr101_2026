@@ -3,7 +3,9 @@ package com.bakr.queryforge.experiment;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,10 +27,12 @@ public class ReadinessController {
     private static final Logger LOG = LoggerFactory.getLogger(ReadinessController.class);
     private final DataSource dataSource;
     private final JdbcTemplate jdbc;
+    private final DatasetInitializer datasetInitializer;
 
-    public ReadinessController(DataSource dataSource, JdbcTemplate jdbc) {
+    public ReadinessController(DataSource dataSource, JdbcTemplate jdbc, DatasetInitializer datasetInitializer) {
         this.dataSource = dataSource;
         this.jdbc = jdbc;
+        this.datasetInitializer = datasetInitializer;
     }
 
     @GetMapping("/readiness")
@@ -61,6 +65,25 @@ public class ReadinessController {
                 "postgresVersion", dbVersion == null ? "unknown" : dbVersion,
                 "checkedAt", Instant.now().toString()
         ));
+
+        return ResponseEntity.ok(body);
+    }
+
+    @PostMapping("/initialize")
+    public ResponseEntity<Map<String, Object>> initialize(@RequestParam(name = "rows", defaultValue = "1000000") int rows) {
+        if (rows <= 0 || rows > 10_000_000) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "rows must be between 1 and 10000000");
+        }
+
+        DatasetInitializer.InitResult result = datasetInitializer.initialize(rows);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("status", result.alreadyExists() ? "already_exists" : "initialized");
+        body.put("rowCount", result.rowCount());
+        body.put("elapsedMs", result.elapsedMs());
+        body.put("message", result.message());
 
         return ResponseEntity.ok(body);
     }

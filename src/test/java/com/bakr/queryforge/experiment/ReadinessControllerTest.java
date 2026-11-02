@@ -43,7 +43,7 @@ class ReadinessControllerTest {
         Mockito.when(conn.getMetaData()).thenReturn(meta);
         Mockito.when(meta.getDatabaseProductVersion()).thenReturn("17.5");
 
-        ReadinessController controller = new ReadinessController(ds, jdbc);
+        ReadinessController controller = new ReadinessController(ds, jdbc, Mockito.mock(DatasetInitializer.class));
         Map<String, Object> body = controller.readiness().getBody();
 
         assertThat(body).containsKey("api").containsKey("database").containsKey("k6").containsKey("fingerprint");
@@ -59,11 +59,60 @@ class ReadinessControllerTest {
         Mockito.when(ds.getConnection()).thenThrow(new SQLException("connection refused"));
 
         org.springframework.jdbc.core.JdbcTemplate jdbc = Mockito.mock(org.springframework.jdbc.core.JdbcTemplate.class);
-        ReadinessController controller = new ReadinessController(ds, jdbc);
+        ReadinessController controller = new ReadinessController(ds, jdbc, Mockito.mock(DatasetInitializer.class));
         Map<String, Object> body = controller.readiness().getBody();
 
         Map<?,?> db = (Map<?,?>) body.get("database");
         assertThat(db.get("status")).isEqualTo("DOWN");
         assertThat(db.get("version")).isEqualTo("unknown");
+    }
+
+    @Test
+    void initializeReturnsAlreadyExistsWhenDataPresent() throws Exception {
+        DataSource ds = Mockito.mock(DataSource.class);
+        org.springframework.jdbc.core.JdbcTemplate jdbc = Mockito.mock(org.springframework.jdbc.core.JdbcTemplate.class);
+
+        DatasetInitializer.InitResult alreadyExists = new DatasetInitializer.InitResult(true, 250L, -1L, "Dataset already contains 250 rows.");
+        DatasetInitializer initializer = Mockito.mock(DatasetInitializer.class);
+        Mockito.when(initializer.initialize(10000)).thenReturn(alreadyExists);
+
+        ReadinessController controller = new ReadinessController(ds, jdbc, initializer);
+        Map<String, Object> body = controller.initialize(10000).getBody();
+
+        assertThat(body.get("status")).isEqualTo("already_exists");
+        assertThat(((Number) body.get("rowCount")).longValue()).isEqualTo(250);
+    }
+
+    @Test
+    void initializeRejectsInvalidRowCount() {
+        DataSource ds = Mockito.mock(DataSource.class);
+        org.springframework.jdbc.core.JdbcTemplate jdbc = Mockito.mock(org.springframework.jdbc.core.JdbcTemplate.class);
+        DatasetInitializer initializer = Mockito.mock(DatasetInitializer.class);
+        ReadinessController controller = new ReadinessController(ds, jdbc, initializer);
+
+        org.springframework.web.server.ResponseStatusException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> controller.initialize(0));
+
+        assertThat(ex.getStatusCode()).isEqualTo(org.springframework.http.HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void initializeSeedsDatasetWhenEmpty() throws Exception {
+        DataSource ds = Mockito.mock(DataSource.class);
+        org.springframework.jdbc.core.JdbcTemplate jdbc = Mockito.mock(org.springframework.jdbc.core.JdbcTemplate.class);
+        Mockito.when(jdbc.queryForObject(Mockito.eq("SELECT count(*) FROM products"), Mockito.eq(Long.class)))
+                .thenReturn(0L, 1000000L);
+
+        DatasetInitializer.InitResult result = new DatasetInitializer.InitResult(false, 1_000_000, 1234L, "Initialized 1000000 rows in 1234 ms.");
+        DatasetInitializer initializer = Mockito.mock(DatasetInitializer.class);
+        Mockito.when(initializer.initialize(1000000)).thenReturn(result);
+
+        ReadinessController controller = new ReadinessController(ds, jdbc, initializer);
+        Map<String, Object> body = controller.initialize(1000000).getBody();
+
+        assertThat(body.get("status")).isEqualTo("initialized");
+        assertThat(((Number) body.get("rowCount")).longValue()).isEqualTo(1_000_000);
+        assertThat(((Number) body.get("elapsedMs")).longValue()).isEqualTo(1234);
     }
 }

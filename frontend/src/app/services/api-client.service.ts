@@ -31,6 +31,11 @@ export class ApiClient {
     return this.http.get<T>(`${this.base}/lab/readiness`);
   }
 
+  initializeDataset<T = any>(rows?: number): Observable<T> {
+    const params = rows ? new HttpParams().set('rows', String(rows)) : undefined;
+    return this.http.post<T>(`${this.base}/lab/initialize`, null, { params });
+  }
+
   getAuthSession<T = any>(): Observable<T> {
     return this.http.get<T>(`${this.base}/auth/session`);
   }

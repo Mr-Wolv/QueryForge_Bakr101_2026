@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { ExperimentsComponent } from './experiments.component';
 import { ApiService, ExperimentTemplate } from '../../services/api.service';
@@ -35,6 +35,7 @@ function setup(rowCount: number | null, overrides: Partial<Record<string, any>> 
     })),
     createRun: vi.fn(() => of({ id: 'run-1' })),
     startRun: vi.fn(() => of({ id: 'run-1' })),
+    initializeDataset: vi.fn(() => of({ status: 'initialized', rowCount: 1_000_000, elapsedMs: 1234, message: 'Initialized 1000000 rows in 1234 ms.' })),
     ...overrides,
   };
   TestBed.configureTestingModule({
@@ -77,5 +78,36 @@ describe('ExperimentsComponent', () => {
     const launch = fixture.nativeElement.querySelector('button.launch') as HTMLButtonElement;
     expect(launch.disabled).toBe(false);
     expect(fixture.nativeElement.textContent).not.toContain('The product dataset is empty');
+  });
+
+  it('shows an initialize button when the dataset is empty', () => {
+    const { fixture } = setup(0);
+
+    const button = fixture.nativeElement.querySelector('button.initialize-button') as HTMLButtonElement;
+    expect(button).toBeTruthy();
+    expect(button.disabled).toBe(false);
+    expect(button.textContent).toContain('Initialize default dataset');
+  });
+
+  it('calls the initialize API and reports success', () => {
+    const { fixture, api, component } = setup(0);
+
+    component.initializeDataset();
+    expect(api.initializeDataset).toHaveBeenCalledOnce();
+    expect(component.initializing).toBe(false);
+    expect(component.initSuccess).toContain('Initialized 1000000 rows');
+    expect(component.readinessRowCount).toBe(1_000_000);
+  });
+
+  it('reports an API error without crashing', () => {
+    const { api, component } = setup(0, {
+      initializeDataset: vi.fn(() => throwError(() => new Error('Server error'))),
+    });
+
+    component.initializeDataset();
+    expect(api.initializeDataset).toHaveBeenCalledOnce();
+    expect(component.initializing).toBe(false);
+    expect(component.initError).toBe('Dataset initialization failed. Check the backend and try again.');
+    expect(component.initSuccess).toBe('');
   });
 });

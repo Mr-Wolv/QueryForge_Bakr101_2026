@@ -140,6 +140,10 @@ export class ApiService {
     return this.apiClient.getReadiness<Readiness>();
   }
 
+  initializeDataset(rows?: number): Observable<any> {
+    return this.apiClient.initializeDataset<any>(rows);
+  }
+
   getAuthSession(): Observable<AuthSession> {
     return this.apiClient.getAuthSession<AuthSession>();
   }

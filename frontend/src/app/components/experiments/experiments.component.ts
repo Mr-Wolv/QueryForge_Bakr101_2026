@@ -25,6 +25,11 @@ type ParameterField = ExperimentTemplate['parameters'][number];
       <div class="dataset-warning" *ngIf="datasetEmpty" role="status">
         <strong>The product dataset is empty (0 rows).</strong>
         Load data before starting a run: a measurement against an empty table is not evidence.
+        <button type="button" class="initialize-button" (click)="initializeDataset()" [disabled]="initializing">
+          {{initializing ? 'Initializing…' : 'Initialize default dataset'}}
+        </button>
+        <p class="dataset-status" *ngIf="initError" role="alert">{{initError}}</p>
+        <p class="dataset-status dataset-status--success" *ngIf="initSuccess">{{initSuccess}}</p>
       </div>
 
       <app-skeleton-card mode="loading" *ngIf="loading" />
@@ -120,6 +125,9 @@ export class ExperimentsComponent {
   validationErrors: Record<string, Record<string, string>> = {};
   launching = false;
   launchError = '';
+  initializing = false;
+  initError = '';
+  initSuccess = '';
   /** Product rows available to the experiments; null when readiness is unknown. */
   readinessRowCount: number | null = null;
 
@@ -146,6 +154,27 @@ export class ExperimentsComponent {
         // Readiness is advisory here: an unreadable readiness probe must not
         // block an operator who knows the environment is populated.
         this.readinessRowCount = null;
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  initializeDataset(): void {
+    this.initializing = true;
+    this.initError = '';
+    this.initSuccess = '';
+    this.cdr.markForCheck();
+
+    this.api.initializeDataset().subscribe({
+      next: result => {
+        this.initializing = false;
+        this.initSuccess = result.message || 'Dataset initialized.';
+        this.readinessRowCount = result.rowCount ?? this.readinessRowCount;
+        this.cdr.markForCheck();
+      },
+      error: error => {
+        this.initializing = false;
+        this.initError = this.errorMessage(error, 'Dataset initialization failed. Check the backend and try again.');
         this.cdr.markForCheck();
       }
     });
