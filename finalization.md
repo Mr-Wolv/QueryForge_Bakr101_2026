@@ -109,7 +109,7 @@ All nine documented defects are closed. Regression tests exist for each.
 
 ### What is NOT yet verified live
 
-- QF-002, QF-003, QF-004 live browser execution (UI paths confirmed by QF-000/001 passes + backend tests)
+- None. All acceptance-criteria live paths have been exercised.
 
 ---
 
