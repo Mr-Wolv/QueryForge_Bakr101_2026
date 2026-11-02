@@ -37,7 +37,7 @@ jobs:
           distribution: temurin
           java-version: 25
           cache: maven
-      - run: mvn dependency:go-offline
+      - run: mvn dependency:go-offline -DincludeScope=test
       - run: mvn -o test
 
   frontend:
