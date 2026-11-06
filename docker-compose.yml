@@ -128,7 +128,7 @@ services:
   # Local SMTP capture UI; it never relays mail beyond this Compose network.
   mailpit:
     profiles: ["monitoring"]
-    image: axllent/mailpit@sha256:cc7251d2f55ca5271a4015012e1075ea7e6391120cca626362d8f5b747de2c49
+    image: axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
     ports:
       - "127.0.0.1:${QF_MAILPIT_PORT:-8025}:8025"
     healthcheck:
