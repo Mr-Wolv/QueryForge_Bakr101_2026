@@ -89,7 +89,7 @@ services:
   # versioned and contains deliberately local-only viewer/operator credentials.
   keycloak:
     profiles: ["authenticated"]
-    image: quay.io/keycloak/keycloak@sha256:32d2eb0f84aaf85b3e3afef544d5b25fcd40a791d62374f327a0cb5ca9aa1da5
+    image: quay.io/keycloak/keycloak@sha256:3879c623248408de29a5303178b5816c77e8dfef3890c361f8c0bbeaa979ba3b
     entrypoint: ["/bin/sh", "/opt/keycloak/data/template/render-realm.sh"]
     command: start-dev --import-realm
     environment:
