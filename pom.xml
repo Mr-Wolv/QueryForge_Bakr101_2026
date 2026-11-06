@@ -21,7 +21,7 @@
         <!-- Hibernate proxies run on Java 25 (class file 69); needs a ByteBuddy that supports it -->
         <byte-buddy.version>1.17.7</byte-buddy.version>
         <springdoc.version>3.2.0</springdoc.version>
-        <testcontainers.version>1.21.3</testcontainers.version>
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
 
     <dependencies>
