@@ -5,7 +5,7 @@ RUN mvn -B -ntp dependency:go-offline
 COPY src ./src
 RUN mvn -B -ntp package -DskipTests
 
-FROM grafana/k6:2.3.0 AS k6
+FROM grafana/k6:2.4.0 AS k6
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app

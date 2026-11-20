@@ -7,7 +7,7 @@ COPY src ./src
 RUN mvn -B -ntp package -DskipTests
 
 # Use the same pinned k6 release in the containerized runner.
-FROM grafana/k6:2.3.0 AS k6
+FROM grafana/k6:2.4.0 AS k6
 
 # Runtime stage
 FROM eclipse-temurin:25-jre
